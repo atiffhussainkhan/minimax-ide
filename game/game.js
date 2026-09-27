@@ -15,18 +15,21 @@ const LADDERS = {
   51: 67, 63: 81, 71: 91, 80: 99,
 };
 
-// Color palette for each snake — body color + matching head sprite
-// (we only have green + yellow snake head PNGs, so we cycle).
+// Color palette for each scary snake — dark, menacing, monster-themed.
 const SNAKE_HEAD_SPRITES = [
-  "assets/snake_green_transparent.png",
-  "assets/snake_yellow_transparent.png",
+  "assets/scary/scary_snake_emerald.png",
+  "assets/scary/scary_snake_gold.png",
+  "assets/scary/scary_snake_crimson.png",
+  "assets/scary/scary_snake_purple.png",
+  "assets/scary/scary_snake_azure.png",
 ];
 const SNAKE_PALETTE = [
-  { outline: "#1a4d2e", body: "#4caf50", belly: "#a5d6a7" }, // emerald
-  { outline: "#8a5a1c", body: "#e8a83a", belly: "#ffe082" }, // gold
-  { outline: "#7a1f2c", body: "#e85a4f", belly: "#ffab91" }, // coral
-  { outline: "#3a1f5a", body: "#9c6fd1", belly: "#d1b3f0" }, // purple
-  { outline: "#1c3d6a", body: "#4f8fe8", belly: "#90caf9" }, // azure
+  // Darker, more menacing shades — these are monster snakes now.
+  { outline: "#0a1f12", body: "#2e7d32", belly: "#81c784", spine: "#a5d6a7" }, // venomous emerald
+  { outline: "#3a2510", body: "#bf6f1c", belly: "#ffb74d", spine: "#ffe082" }, // desert viper
+  { outline: "#2a0a0e", body: "#b71c1c", belly: "#ef5350", spine: "#ff8a80" }, // crimson pit viper
+  { outline: "#1a0a2a", body: "#6a1b9a", belly: "#ba68c8", spine: "#ea80fc" }, // shadow cobra
+  { outline: "#0a1929", body: "#1565c0", belly: "#42a5f5", spine: "#80d8ff" }, // abyssal mamba
 ];
 
 const ALL_PLAYERS = [
@@ -289,90 +292,140 @@ function buildBoard() {
 }
 
 // ---------------------------------------------------------------------------
-// Long snake body rendering
+// Long snake body rendering — scary monster snake edition
 // ---------------------------------------------------------------------------
-// Draws a thick, curving, scale-dotted snake body from start square to end
-// square using SVG cubic beziers. The result is a cartoon "S"-shaped body
-// with darker outline + main color + lighter belly highlight.
+// Draws a thick, curving, scale-spiked snake body from start square to end
+// square using SVG cubic beziers. Each snake gets:
+//   - dark outline (thicker)
+//   - main venomous body color
+//   - belly highlight (offset)
+//   - sharp scale bands (dotted)
+//   - a row of triangular spine spikes along its back
+//   - a forked tongue flicking out from the head
 function drawSnakeBody(svg, fromSquare, toSquare, palette) {
   const a = squareSvg(fromSquare);
   const b = squareSvg(toSquare);
   if (!a || !b) return;
 
-  // Compute an S-curve with two cubic-bezier segments so the body weaves
-  // through the squares it crosses.
+  // S-curve geometry.
   const dx = b.x - a.x;
   const dy = b.y - a.y;
   const len = Math.sqrt(dx*dx + dy*dy);
-  // Perpendicular unit vector (rotate the snake-line by 90°).
   const perpX = -dy / len;
   const perpY =  dx / len;
-  // Offset magnitude proportional to distance — gives a nice big S-bend.
   const offset = Math.min(len * 0.45, 220);
-  // Mid-point of the snake.
-  const mx = (a.x + b.x) / 2;
-  const my = (a.y + b.y) / 2;
-  // Bend control points, alternating sides to weave.
   const c1x = a.x + dx * 0.33 + perpX * offset;
   const c1y = a.y + dy * 0.33 + perpY * offset;
   const c2x = a.x + dx * 0.66 - perpX * offset;
   const c2y = a.y + dy * 0.66 - perpY * offset;
-  // Tangent at the start (for orienting the head sprite).
   const startTangent = Math.atan2(c1y - a.y, c1x - a.x);
 
-  // SVG path string: M start C ctrl1 ctrl2 end.
   const pathData = `M ${a.x},${a.y} C ${c1x},${c1y} ${c2x},${c2y} ${b.x},${b.y}`;
-
   const NS = "http://www.w3.org/2000/svg";
+
+  // Body outline — thick menacing border.
   const p1 = document.createElementNS(NS, "path");
   p1.setAttribute("d", pathData);
   p1.setAttribute("stroke", palette.outline);
-  p1.setAttribute("stroke-width", "22");
+  p1.setAttribute("stroke-width", "26");
   p1.setAttribute("stroke-linecap", "round");
   p1.setAttribute("stroke-linejoin", "round");
   p1.setAttribute("fill", "none");
   svg.appendChild(p1);
 
+  // Main venomous body color.
   const p2 = document.createElementNS(NS, "path");
   p2.setAttribute("d", pathData);
   p2.setAttribute("stroke", palette.body);
-  p2.setAttribute("stroke-width", "16");
+  p2.setAttribute("stroke-width", "20");
   p2.setAttribute("stroke-linecap", "round");
   p2.setAttribute("stroke-linejoin", "round");
   p2.setAttribute("fill", "none");
   svg.appendChild(p2);
 
-  // Belly highlight: thinner, offset along the perpendicular slightly so it
-  // sits on the inside of each curve, like the lighter underside of a snake.
-  // We approximate by drawing a stroke that's slightly translated by an
-  // affine matrix — good enough visually.
+  // Belly highlight — sits on one side of the body.
   const p3 = document.createElementNS(NS, "path");
   p3.setAttribute("d", pathData);
   p3.setAttribute("stroke", palette.belly);
-  p3.setAttribute("stroke-width", "6");
+  p3.setAttribute("stroke-width", "7");
   p3.setAttribute("stroke-linecap", "round");
   p3.setAttribute("stroke-linejoin", "round");
   p3.setAttribute("fill", "none");
   p3.setAttribute("opacity", "0.85");
-  // Translate the highlight path so it sits on one side of the body.
-  p3.setAttribute("transform", `translate(${perpX * -4}, ${perpY * -4})`);
+  p3.setAttribute("transform", `translate(${perpX * -5}, ${perpY * -5})`);
   svg.appendChild(p3);
 
-  // Scale bands: small darker ovals along the path using <use> + dash trick.
-  // Achieved by stroking a copy of the path with a dotted pattern in the
-  // outline color, narrower than the body itself.
+  // Scale bands (dotted darker stroke).
   const p4 = document.createElementNS(NS, "path");
   p4.setAttribute("d", pathData);
   p4.setAttribute("stroke", palette.outline);
   p4.setAttribute("stroke-width", "3");
   p4.setAttribute("stroke-linecap", "round");
   p4.setAttribute("fill", "none");
-  p4.setAttribute("stroke-dasharray", "2 14");
-  p4.setAttribute("opacity", "0.55");
+  p4.setAttribute("stroke-dasharray", "3 12");
+  p4.setAttribute("opacity", "0.7");
   svg.appendChild(p4);
 
-  // Stash the start tangent on the head element via a class so the CSS
-  // animation rotates the head to look down the body.
+  // ----- Spine spikes: sample the bezier at N points, drop a triangle
+  // perpendicular to the path on the "back" side (perpX/perpY direction).
+  // Approximation: linear sample between control points — visually good
+  // enough for cartoon styling.
+  const samples = Math.max(6, Math.floor(len / 22));
+  for (let s = 1; s < samples; s++) {
+    const t = s / samples;
+    // Cubic bezier B(t) with P0=a, P1=c1, P2=c2, P3=b
+    const omt = 1 - t;
+    const px = omt*omt*omt * a.x + 3*omt*omt*t * c1x + 3*omt*t*t * c2x + t*t*t * b.x;
+    const py = omt*omt*omt * a.y + 3*omt*omt*t * c1y + 3*omt*t*t * c2y + t*t*t * b.y;
+    // Tangent (derivative) direction.
+    const tx = 3*omt*omt * (c1x - a.x) + 6*omt*t * (c2x - c1x) + 3*t*t * (b.x - c2x);
+    const ty = 3*omt*omt * (c1y - a.y) + 6*omt*t * (c2y - c1y) + 3*t*t * (b.y - c2y);
+    const tlen = Math.sqrt(tx*tx + ty*ty) || 1;
+    const ux = tx / tlen;
+    const uy = ty / tlen;
+    // Perpendicular pointing "up" relative to path direction.
+    const nx = -uy;
+    const ny =  ux;
+    // Spike base on the body, tip outward.
+    const baseW = 5;
+    const tipLen = 9;
+    const bx = px + nx * baseW;
+    const by = py + ny * baseW;
+    const tx2 = px - nx * baseW;
+    const ty2 = py - ny * baseW;
+    const tipx = px + nx * (baseW + tipLen);
+    const tipy = py + ny * (baseW + tipLen);
+    const tri = document.createElementNS(NS, "polygon");
+    tri.setAttribute("points", `${bx},${by} ${tx2},${ty2} ${tipx},${tipy}`);
+    tri.setAttribute("fill", palette.outline);
+    tri.setAttribute("stroke", palette.spine);
+    tri.setAttribute("stroke-width", "1.2");
+    tri.setAttribute("stroke-linejoin", "round");
+    svg.appendChild(tri);
+  }
+
+  // ----- Forked tongue at the snake's head, flicking out along startTangent.
+  // Start the tongue just past the head sprite (radius ~12 in svg units).
+  const tongueStartR = 14;
+  const tsx = a.x + Math.cos(startTangent) * tongueStartR;
+  const tsy = a.y + Math.sin(startTangent) * tongueStartR;
+  const tipR = 32;
+  const tipx3 = a.x + Math.cos(startTangent) * tipR;
+  const tipy3 = a.y + Math.sin(startTangent) * tipR;
+  // Fork at end: two prongs perpendicular to tongue direction.
+  const forkR = 8;
+  const fx1 = tipx3 + Math.cos(startTangent + 2.5) * forkR;
+  const fy1 = tipy3 + Math.sin(startTangent + 2.5) * forkR;
+  const fx2 = tipx3 + Math.cos(startTangent - 2.5) * forkR;
+  const fy2 = tipy3 + Math.sin(startTangent - 2.5) * forkR;
+  const tongue = document.createElementNS(NS, "path");
+  tongue.setAttribute("d", `M ${tsx},${tsy} L ${tipx3},${tipy3} M ${tipx3},${tipy3} L ${fx1},${fy1} M ${tipx3},${tipy3} L ${fx2},${fy2}`);
+  tongue.setAttribute("stroke", "#c2185b"); // deep blood-red tongue
+  tongue.setAttribute("stroke-width", "3");
+  tongue.setAttribute("stroke-linecap", "round");
+  tongue.setAttribute("fill", "none");
+  svg.appendChild(tongue);
+
   svg.dataset.lastStartTangent = String(startTangent);
 }
 
