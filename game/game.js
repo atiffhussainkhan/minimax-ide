@@ -213,7 +213,7 @@ function buildBoard() {
     const palette = SNAKE_PALETTE[idx % SNAKE_PALETTE.length];
     const g = document.createElementNS(NS, "g");
     g.setAttribute("class", "snake-3d");
-    g.setAttribute("opacity", "0.75");
+    g.setAttribute("opacity", "0.92");
     draw3DSnake(g, Number(from), Number(to), palette, idx);
     overlay.appendChild(g);
   });
@@ -288,9 +288,6 @@ function draw3DSnake(svg, fromSquare, toSquare, palette, idx) {
   filter.setAttribute("color-interpolation-filters", "sRGB");
   filter.innerHTML = `
     <feColorMatrix type="hueRotate" values="${parseHue(palette.hue)}" />
-    <feComponentTransfer>
-      <feFuncA type="linear" slope="0.95" />
-    </feComponentTransfer>
   `;
   defs.appendChild(filter);
 
@@ -303,7 +300,7 @@ function draw3DSnake(svg, fromSquare, toSquare, palette, idx) {
   const cx = (a.x + b.x) / 2;
   const cy = (a.y + b.y) / 2;
 
-  // Sprite aspect ratio = 962/383 ≈ 2.51
+  // Sprite aspect ratio = 1280/300 ≈ 4.27 (very long and slender).
   const aspect = SNAKE_SPRITE_W / SNAKE_SPRITE_H;
   // Snake sprite width = 1.0x path length so the snake just spans from
   // start square to end square. Clamped 180–360 SVG units so:
@@ -311,7 +308,10 @@ function draw3DSnake(svg, fromSquare, toSquare, palette, idx) {
   //   - long snakes (e.g. 99→54) stay inside the board and don't overlap
   //     with neighboring snakes/ladders
   const targetW = Math.min(Math.max(len * 1.0, 180), 360);
-  const targetH = targetW / aspect;
+  // Boost the snake's vertical thickness by ~1.55x so it reads as a clear
+  // 3D cartoon snake against the textured board, instead of disappearing
+  // into the background like a thin green wire.
+  const targetH = (targetW / aspect) * 1.55;
 
   const img = document.createElementNS(NS, "image");
   img.setAttributeNS("http://www.w3.org/1999/xlink", "href", SNAKE_SPRITE_HREF);
