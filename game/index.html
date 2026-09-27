@@ -119,6 +119,23 @@
       </div>
     </div>
 
+    <!-- Between-games interstitial: shown after each game, EXCEPT the last.
+         The tournament is still running, so this never returns to the setup
+         screen — it just reports the game result and moves on. -->
+    <div id="gameover-modal" class="modal-backdrop" hidden role="dialog" aria-modal="true" aria-labelledby="gameover-title">
+      <div class="modal gameover-modal">
+        <h2 id="gameover-title">🎉 Game Complete</h2>
+        <p id="gameover-winner" class="gameover-winner"></p>
+        <p id="gameover-line" class="modal-sub"></p>
+        <p id="gameover-score" class="gameover-tally"></p>
+        <ol id="gameover-standings" class="t-wins gameover-standings"></ol>
+        <p id="gameover-progress" class="modal-sub gameover-progress"></p>
+        <button id="next-game-btn" type="button" class="start-btn">
+          ▶ Next Game
+        </button>
+      </div>
+    </div>
+
     <!-- Tournament winner modal — appears after all games done -->
     <div id="champion-modal" class="modal-backdrop champion-backdrop" hidden role="dialog" aria-modal="true" aria-labelledby="champion-title">
       <div class="champion-modal">

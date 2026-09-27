@@ -56,6 +56,12 @@ const state = {
   totalGames: 1,        // 1, 3, 5, 7, or 9
   currentGame: 1,
   wins: {},             // { playerId: count }
+  // Per-game history so the running tally can show who took each game.
+  // Each entry: { game: <1-based index>, winnerId: <player id> }
+  history: [],
+  // True once the last game has been played — only then does the champion
+  // modal appear and the setup screen come back.
+  tournamentDone: false,
 };
 
 // Amazing per-game and champion messages — picked randomly so each win feels
@@ -93,19 +99,20 @@ const CHAMPION_LINES = {
 // ---------------------------------------------------------------------------
 // Board geometry
 // ---------------------------------------------------------------------------
-// Snake-style numbering: row 0 has squares 100..91 (left to right),
-// row 1 has 81..90 (right to left), etc.
+// Classic snake-and-ladder zig-zag numbering, bottom row first:
+//   row 0 (bottom):  1 → 10   left to right
+//   row 1:          11 → 20   right to left  (so 11 sits directly above 10)
+//   row 2:          21 → 30   left to right  (so 21 sits directly above 20)
+//   …alternating up to row 9, ending with 100 in the top-left corner.
 function positionForSquare(square) {
   if (square < 1 || square > 100) return null;
   const zeroBased = square - 1;
-  // Pure left-to-right, bottom-to-top layout (no zigzag):
-  //   square 1   = bottom-left
-  //   square 10  = bottom-right
-  //   square 11  = next row up, leftmost
-  //   square 100 = top-right
-  const oldRow = Math.floor(zeroBased / COLS);
-  const col = zeroBased % COLS;
-  const row = (ROWS - 1) - oldRow;  // flip vertically so 1 is at bottom
+  const band = Math.floor(zeroBased / COLS);  // 0-based row counted from the bottom
+  const offset = zeroBased % COLS;           // 0..9 position within that row
+  // Flip vertically so the numbering starts at the bottom of the board.
+  const row = (ROWS - 1) - band;
+  // Even bands read left→right, odd bands right→left.
+  const col = (band % 2 === 0) ? offset : (COLS - 1 - offset);
   return { row, col };
 }
 
@@ -428,10 +435,12 @@ function placePawn(player) {
   const el = document.getElementById(`pawn-${player.id}`);
   if (!el) return;
   if (player.pos === 0) {
-    // Off-board "home" position: park pawns under square 1 in a fan.
+    // Off-board "home" position: park the pawns in a fan along the BOTTOM edge
+    // of the board, just below square 1, so everyone starts down at the start
+    // line rather than up near the top rows.
     const off = PAWN_OFFSETS[player.id] || { dx: 0, dy: 0 };
-    el.style.left = `${(0.5) * 10 + off.dx}%`;
-    el.style.top  = `${(0.5) * 10 + 6 + off.dy}%`;
+    el.style.left = `${(0.5) * 10 + 1.5 + off.dx * 1.4}%`;
+    el.style.top  = `${96 + off.dy * 0.5}%`;
     return;
   }
   const pos = positionForSquare(player.pos);
@@ -523,21 +532,24 @@ async function rollAndMove() {
 
   if (player.pos === 100) {
     state.winner = player.id;
-    // Tournament win tracking — increment this player's win count
+    // Tournament win tracking — increment this player's win count and record
+    // this game in the history so the running tally can show who took what.
     state.wins[player.id] = (state.wins[player.id] || 0) + 1;
+    state.history.push({ game: state.currentGame, winnerId: player.id });
     const winLine = GAME_WIN_LINES[Math.floor(Math.random() * GAME_WIN_LINES.length)](player.name);
     toast(`🏆 ${winLine}`);
     updateActivePlayer();
     updateTournamentPanel();
     state.moving = false;
     rollBtn.disabled = true;
-    // Wait so the toast can be seen, then either start next game or
-    // declare the overall champion.
+    // Let the win toast be read, then move on. Finishing a single game never
+    // ends the tournament — it only ends once the selected number of games has
+    // been played in total.
     setTimeout(() => {
       if (state.currentGame < state.totalGames) {
-        state.currentGame++;
-        startNextGame();
+        showGameOverModal(player, winLine);
       } else {
+        state.tournamentDone = true;
         showChampionModal();
       }
     }, 2400);
@@ -589,6 +601,9 @@ function startTournament(n, totalGames) {
   state.totalGames = totalGames;
   state.currentGame = 1;
   state.wins = {};
+  state.history = [];
+  state.tournamentDone = false;
+  hideGameOverModal();
   // Populate PLAYERS from the canonical ALL_PLAYERS list (slice to n).
   PLAYERS = ALL_PLAYERS.slice(0, n).map((p) => ({ ...p, pos: 0 }));
   PLAYERS.forEach((p) => { state.wins[p.id] = 0; });
@@ -608,13 +623,15 @@ function startTournament(n, totalGames) {
     : `${n}-player tournament · ${totalGames} games`);
 }
 
-// Start the next game in a tournament — same players, fresh board.
+// Start the next game in a tournament — same players, fresh board. Only ever
+// called from the between-games interstitial, so the tournament stays alive.
 function startNextGame() {
   PLAYERS = PLAYERS.map((p) => ({ ...p, pos: 0 }));
   state.turn = 0;
   state.rolled = null;
   state.moving = false;
   state.winner = null;
+  state.currentGame++;
   buildBoard();
   buildPlayerList();
   placeAllPawns();
@@ -661,6 +678,57 @@ function updateTournamentPanel() {
   });
 }
 
+// Show the between-games interstitial: reports who won the game that just
+// finished and the running tally, then waits for the player to start the next
+// game. Crucially this does NOT go back to the setup screen — the tournament
+// is still running.
+function showGameOverModal(winner, winLine) {
+  const modal = document.getElementById("gameover-modal");
+  document.getElementById("gameover-winner").innerHTML =
+    `<span style="color:${winner.color}">${winner.name}</span> wins game ${state.currentGame}!`;
+  document.getElementById("gameover-line").textContent = winLine;
+
+  // Running tally across the whole tournament so far.
+  const gamesSoFar = state.history.length;
+  document.getElementById("gameover-score").textContent =
+    `Tournament tally after ${gamesSoFar} of ${state.totalGames} games`;
+
+  // Standings, leader highlighted, same ordering as the sidebar.
+  const maxWins = PLAYERS.reduce((m, p) => Math.max(m, state.wins[p.id] || 0), 0);
+  const sorted = PLAYERS.slice().sort(
+    (a, b) => (state.wins[b.id] || 0) - (state.wins[a.id] || 0)
+  );
+  const list = document.getElementById("gameover-standings");
+  list.innerHTML = "";
+  sorted.forEach((p) => {
+    const w = state.wins[p.id] || 0;
+    const li = document.createElement("li");
+    if (w === maxWins && maxWins > 0) li.classList.add("leader");
+    li.innerHTML = `
+      <span class="t-dot" style="background:${p.color}"></span>
+      <span class="t-name">${p.name}</span>
+      <span class="t-score">${w}</span>
+    `;
+    list.appendChild(li);
+  });
+
+  document.getElementById("gameover-progress").textContent =
+    `${state.totalGames - gamesSoFar} game${state.totalGames - gamesSoFar === 1 ? "" : "s"} left in this tournament`;
+
+  modal.hidden = false;
+  document.body.classList.add("locked");
+  // Put focus on the button so Enter/Space advances.
+  const btn = document.getElementById("next-game-btn");
+  btn.textContent = `▶ Game ${state.currentGame + 1} of ${state.totalGames}`;
+  btn.focus();
+}
+
+function hideGameOverModal() {
+  const modal = document.getElementById("gameover-modal");
+  if (modal) modal.hidden = true;
+  document.body.classList.remove("locked");
+}
+
 // Show the champion modal — picked the overall winner and pick a message
 // from the amazing-message pool based on how close/dominant the win was.
 function showChampionModal() {
@@ -686,7 +754,10 @@ function showChampionModal() {
   );
   const stats = sorted.map((p) => `${p.name} ${state.wins[p.id] || 0}`)
                      .join("  ·  ");
-  document.getElementById("champion-stats").innerHTML = `Final standings: ${stats}`;
+  document.getElementById("champion-stats").innerHTML =
+    `Final standings: ${stats}<br><span class="champion-games">` +
+    `Tournament complete — all ${state.totalGames} game${state.totalGames === 1 ? "" : "s"} played. ` +
+    `Start a new tournament to play again.</span>`;
   // Spawn confetti
   spawnConfetti();
   document.getElementById("champion-modal").hidden = false;
@@ -716,9 +787,13 @@ function spawnConfetti() {
   }
 }
 
-// Reset the whole tournament — back to the first page (modal).
+// Reset the whole tournament — back to the first page (modal). Only reachable
+// once the tournament is actually over (champion screen) or via "New Game".
 function fullReset() {
   hideChampionModal();
+  hideGameOverModal();
+  state.tournamentDone = false;
+  state.history = [];
   // Clear all selections in the modal
   document.querySelectorAll(".count-btn.selected").forEach((b) => b.classList.remove("selected"));
   document.querySelectorAll(".games-btn.selected").forEach((b) => b.classList.remove("selected"));
@@ -775,6 +850,14 @@ window.addEventListener("DOMContentLoaded", () => {
   document.getElementById("champion-restart-btn").addEventListener("click", () => {
     fullReset();
   });
+  // Between-games interstitial: advance to the next game in the tournament.
+  // The setup screen is deliberately NOT shown here — the tournament is still
+  // running, so we just rebuild the board and carry on.
+  document.getElementById("next-game-btn").addEventListener("click", () => {
+    if (state.tournamentDone) return;
+    hideGameOverModal();
+    startNextGame();
+  });
 
   // Open the first-page modal on load so the user picks players + games.
   if (testPlayers >= 1 && testPlayers <= 4 && testGames >= 1 && testGames <= 9) {
@@ -786,14 +869,47 @@ window.addEventListener("DOMContentLoaded", () => {
     showPlayerModal();
   }
   // Keyboard shortcut: press R (or Space) to roll the dice, just like the
-  // Roll Dice button. Ignored when a modal is open.
+  // Roll Dice button. Ignored when any modal is open.
   document.addEventListener("keydown", (e) => {
     if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA") return;
     if (!document.getElementById("player-modal").hidden) return;
     if (!document.getElementById("champion-modal").hidden) return;
+    // Between-games interstitial: let Enter/Space press "Next Game" instead of
+    // rolling dice on a board that is already finished.
+    const over = document.getElementById("gameover-modal");
+    if (over && !over.hidden) {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        if (!state.tournamentDone) { hideGameOverModal(); startNextGame(); }
+      }
+      return;
+    }
     if (e.key === "r" || e.key === "R" || e.key === " ") {
       e.preventDefault();
       rollAndMove();
     }
   });
+
+  // Headless test hook: ?test=1&fast=1 auto-plays whole games so the
+  // multi-game tournament flow can be verified without 100s of manual rolls.
+  // Only active when the explicit `test` param is present.
+  if (isTest && urlParams.get("fast") === "1") {
+    const holdAtGameOver = urlParams.get("hold") === "1";
+    const autoRoll = () => {
+      const over = document.getElementById("gameover-modal");
+      if (over && !over.hidden) {
+        // Tournament still running — take the interstitial's Next Game path.
+        if (holdAtGameOver) return;  // leave it up so it can be screenshotted
+        hideGameOverModal();
+        startNextGame();
+        setTimeout(autoRoll, 120);
+        return;
+      }
+      if (!document.getElementById("champion-modal").hidden) return; // done
+      if (state.winner !== null || state.moving) { setTimeout(autoRoll, 80); return; }
+      rollAndMove();
+      setTimeout(autoRoll, 140);
+    };
+    setTimeout(autoRoll, 400);
+  }
 });
