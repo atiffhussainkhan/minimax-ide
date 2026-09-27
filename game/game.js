@@ -15,21 +15,24 @@ const LADDERS = {
   51: 67, 63: 81, 71: 91, 80: 99,
 };
 
-// Color palette for each scary snake — dark, menacing, monster-themed.
-const SNAKE_HEAD_SPRITES = [
-  "assets/scary/scary_snake_emerald.png",
-  "assets/scary/scary_snake_gold.png",
-  "assets/scary/scary_snake_crimson.png",
-  "assets/scary/scary_snake_purple.png",
-  "assets/scary/scary_snake_azure.png",
+// One cartoon snake sprite, used for all 5 snakes with hue-rotate tint
+// variations so they're distinguishable on the board.
+const SNAKE_SPRITE = "assets/cute/cute_snake_main.png";
+// Hue-rotate degrees applied to each snake so they're visually distinct on the
+// board. All use the same cartoon snake sprite underneath.
+const SNAKE_HUE_ROTATE = [
+  "0deg",     // emerald (original)
+  "330deg",   // gold-rose
+  "200deg",   // sky-blue
+  "270deg",   // purple
+  "160deg",   // teal
 ];
 const SNAKE_PALETTE = [
-  // Darker, more menacing shades — these are monster snakes now.
-  { outline: "#0a1f12", body: "#2e7d32", belly: "#81c784", spine: "#a5d6a7" }, // venomous emerald
-  { outline: "#3a2510", body: "#bf6f1c", belly: "#ffb74d", spine: "#ffe082" }, // desert viper
-  { outline: "#2a0a0e", body: "#b71c1c", belly: "#ef5350", spine: "#ff8a80" }, // crimson pit viper
-  { outline: "#1a0a2a", body: "#6a1b9a", belly: "#ba68c8", spine: "#ea80fc" }, // shadow cobra
-  { outline: "#0a1929", body: "#1565c0", belly: "#42a5f5", spine: "#80d8ff" }, // abyssal mamba
+  { hue: "0deg",   tint: "#4caf50" }, // emerald
+  { hue: "330deg", tint: "#ffb74d" }, // gold-rose
+  { hue: "200deg", tint: "#42a5f5" }, // sky-blue
+  { hue: "270deg", tint: "#ba68c8" }, // purple
+  { hue: "160deg", tint: "#26a69a" }, // teal
 ];
 
 const ALL_PLAYERS = [
@@ -208,16 +211,9 @@ function buildBoard() {
     }
   });
 
-  // Long snake bodies — each wrapped in a <g opacity="0.8"> so the WHOLE
-  // snake (body + head + tongue + tail) reads as 20%-transparent.
-  Object.entries(SNAKES).forEach(([from, to], idx) => {
-    const palette = SNAKE_PALETTE[idx % SNAKE_PALETTE.length];
-    const snakeGroup = document.createElementNS(NS, "g");
-    snakeGroup.setAttribute("class", "snake-svg");
-    snakeGroup.setAttribute("opacity", "0.8");
-    drawSnakeBody(snakeGroup, Number(from), Number(to), palette);
-    overlay.appendChild(snakeGroup);
-  });
+  // No SVG snake bodies — each snake uses the single cartoon sprite (placed
+  // in the snakeLayer below) with a hue-rotate tint per snake. The SVG
+  // overlay only carries ladder rails now.
   board.appendChild(overlay);
 
   // ---- Ladder decorations (small wooden ladder sprite at the base of each ladder) ----
@@ -237,54 +233,51 @@ function buildBoard() {
   });
   board.appendChild(decorLayer);
 
-  // ---- Snake heads (cute snake sprite at the bite square) + tail coils ----
-  // Each snake's head + tail is wrapped in a div with opacity 0.8 so the
-  // whole snake reads as 20%-transparent (matches the SVG body group).
+  // ---- Snake sprites — single cartoon design placed at the bite square.
+  // Each snake is wrapped in a div with opacity 0.75 (25% transparent)
+  // and a hue-rotate filter so they're visually distinct.
   const snakeLayer = document.createElement("div");
   snakeLayer.className = "snake-layer";
   Object.entries(SNAKES).forEach(([from], idx) => {
     const palette = SNAKE_PALETTE[idx % SNAKE_PALETTE.length];
-    const headSprite = SNAKE_HEAD_SPRITES[idx % SNAKE_HEAD_SPRITES.length];
 
-    // Wrapper so opacity applies to head + tail together.
+    // Wrapper applies opacity + hue-rotate to the whole snake sprite.
     const snakeWrap = document.createElement("div");
     snakeWrap.className = "snake-piece";
-    snakeWrap.style.cssText = "opacity:0.8;";
+    snakeWrap.style.cssText = `opacity:0.75; filter: hue-rotate(${palette.hue});`;
 
+    // Cartoon snake sprite (face + coiled body) — positioned at the
+    // bite square, sized large enough to fill the destination range too.
     const headImg = document.createElement("img");
-    headImg.src = headSprite;
+    headImg.src = SNAKE_SPRITE;
     headImg.className = "decor decor-snake-head";
-    headImg.alt = "snake head";
-    const c = squareCenter(Number(from));
-    if (c) {
-      headImg.style.left = c.left;
-      headImg.style.top  = c.top;
-      headImg.style.transform = "translate(-50%, -50%)";
+    headImg.alt = "snake";
+    // Position at the midpoint between head square and tail square so the
+    // visible body bridges from bite to destination.
+    const fromPos = positionForSquare(Number(from));
+    const toPos   = positionForSquare(SNAKES[from]);
+    if (fromPos && toPos) {
+      const midCol = (fromPos.col + toPos.col) / 2 + 0.5;
+      const midRow = (fromPos.row + toPos.row) / 2 + 0.5;
+      headImg.style.left = `${midCol * 10}%`;
+      headImg.style.top  = `${midRow * 10}%`;
     }
+    headImg.style.transform = "translate(-50%, -50%)";
     snakeWrap.appendChild(headImg);
 
-    // Tail: draw an SVG coil on top of the destination square.
-    const tailSvg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-    tailSvg.setAttribute("viewBox", "0 0 100 100");
-    tailSvg.classList.add("decor-snake-tail-svg");
+    // Small tail-end dot at the destination square.
+    const tailDot = document.createElement("div");
+    tailDot.className = "decor-snake-tail";
     const t = squareCenter(SNAKES[from]);
-    tailSvg.style.cssText = `position:absolute;left:${t.left};top:${t.top};transform:translate(-50%,-50%);width:9%;height:9%;pointer-events:none;`;
-    // Coiled spiral tail (SVG path) — bigger, scarier.
-    const tailPath = document.createElementNS("http://www.w3.org/2000/svg", "path");
-    tailPath.setAttribute("d", "M 50 50 m -26 0 a 26 26 0 1 1 52 0 a 19 19 0 1 1 -38 0 a 12 12 0 1 1 24 0 a 6 6 0 1 1 -12 0");
-    tailPath.setAttribute("stroke", palette.outline);
-    tailPath.setAttribute("stroke-width", "8");
-    tailPath.setAttribute("fill", "none");
-    tailPath.setAttribute("stroke-linecap", "round");
-    tailSvg.appendChild(tailPath);
-    const tailFill = document.createElementNS("http://www.w3.org/2000/svg", "path");
-    tailFill.setAttribute("d", "M 50 50 m -26 0 a 26 26 0 1 1 52 0 a 19 19 0 1 1 -38 0 a 12 12 0 1 1 24 0 a 6 6 0 1 1 -12 0");
-    tailFill.setAttribute("stroke", palette.body);
-    tailFill.setAttribute("stroke-width", "4");
-    tailFill.setAttribute("fill", "none");
-    tailFill.setAttribute("stroke-linecap", "round");
-    tailSvg.appendChild(tailFill);
-    snakeWrap.appendChild(tailSvg);
+    if (t) {
+      tailDot.style.left = t.left;
+      tailDot.style.top  = t.top;
+      tailDot.style.transform = "translate(-50%, -50%)";
+      tailDot.style.background = palette.tint;
+      tailDot.style.boxShadow = `0 0 6px ${palette.tint}`;
+    }
+    snakeWrap.appendChild(tailDot);
+
     snakeLayer.appendChild(snakeWrap);
   });
   board.appendChild(snakeLayer);
@@ -305,209 +298,8 @@ function buildBoard() {
 }
 
 // ---------------------------------------------------------------------------
-// Long snake body rendering — scary monster snake edition (full-body sync)
-// ---------------------------------------------------------------------------
-// Draws a thick, curving, scale-spiked snake body from start square to end
-// square using SVG cubic beziers. Each snake gets:
-//   - dark thick outline (heavy menace)
-//   - main venomous body color
-//   - belly highlight stripe (offset)
-//   - dorsal scale-band stripes (perpendicular cross-stripes like a banded
-//     venomous snake — coral-snake style menace)
-//   - dense triangular spine spikes along its back
-//   - a venomous fanged mouth at the head
-//   - a forked tongue flicking out from the head along startTangent
-//
-// Caller is expected to wrap the returned group in opacity=0.8 for the
-// 20%-transparent overall snake look.
-function drawSnakeBody(svg, fromSquare, toSquare, palette) {
-  const a = squareSvg(fromSquare);
-  const b = squareSvg(toSquare);
-  if (!a || !b) return;
-
-  // S-curve geometry.
-  const dx = b.x - a.x;
-  const dy = b.y - a.y;
-  const len = Math.sqrt(dx*dx + dy*dy);
-  const perpX = -dy / len;
-  const perpY =  dx / len;
-  const offset = Math.min(len * 0.45, 220);
-  const c1x = a.x + dx * 0.33 + perpX * offset;
-  const c1y = a.y + dy * 0.33 + perpY * offset;
-  const c2x = a.x + dx * 0.66 - perpX * offset;
-  const c2y = a.y + dy * 0.66 - perpY * offset;
-  const startTangent = Math.atan2(c1y - a.y, c1x - a.x);
-
-  const pathData = `M ${a.x},${a.y} C ${c1x},${c1y} ${c2x},${c2y} ${b.x},${b.y}`;
-  const NS = "http://www.w3.org/2000/svg";
-
-  // ----- 1. Body outline — extra thick menacing border. -----
-  const p1 = document.createElementNS(NS, "path");
-  p1.setAttribute("d", pathData);
-  p1.setAttribute("stroke", palette.outline);
-  p1.setAttribute("stroke-width", "32");
-  p1.setAttribute("stroke-linecap", "round");
-  p1.setAttribute("stroke-linejoin", "round");
-  p1.setAttribute("fill", "none");
-  svg.appendChild(p1);
-
-  // ----- 2. Main venomous body color (thicker). -----
-  const p2 = document.createElementNS(NS, "path");
-  p2.setAttribute("d", pathData);
-  p2.setAttribute("stroke", palette.body);
-  p2.setAttribute("stroke-width", "24");
-  p2.setAttribute("stroke-linecap", "round");
-  p2.setAttribute("stroke-linejoin", "round");
-  p2.setAttribute("fill", "none");
-  svg.appendChild(p2);
-
-  // ----- 3. Dorsal ridge: thin dark stripe along the TOP of the body.
-  //         (translated along the perpendicular vector). Makes the body
-  //         look like it has a "spine" running along its back. -----
-  const dorsal = document.createElementNS(NS, "path");
-  dorsal.setAttribute("d", pathData);
-  dorsal.setAttribute("stroke", palette.outline);
-  dorsal.setAttribute("stroke-width", "10");
-  dorsal.setAttribute("stroke-linecap", "round");
-  dorsal.setAttribute("stroke-linejoin", "round");
-  dorsal.setAttribute("fill", "none");
-  dorsal.setAttribute("transform", `translate(${perpX * 6}, ${perpY * 6})`);
-  dorsal.setAttribute("opacity", "0.85");
-  svg.appendChild(dorsal);
-
-  // ----- 4. Belly highlight stripe (offset to the other side). -----
-  const belly = document.createElementNS(NS, "path");
-  belly.setAttribute("d", pathData);
-  belly.setAttribute("stroke", palette.belly);
-  belly.setAttribute("stroke-width", "8");
-  belly.setAttribute("stroke-linecap", "round");
-  belly.setAttribute("stroke-linejoin", "round");
-  belly.setAttribute("fill", "none");
-  belly.setAttribute("transform", `translate(${perpX * -6}, ${perpY * -6})`);
-  belly.setAttribute("opacity", "0.85");
-  svg.appendChild(belly);
-
-  // ----- 5. Belly band stripes (perpendicular cross-stripes, coral-snake
-  //         style menace). Sample the bezier at regular intervals and draw
-  //         short dark bars perpendicular to the tangent. -----
-  const bandSamples = Math.max(8, Math.floor(len / 14));
-  for (let s = 1; s < bandSamples; s++) {
-    const t = s / bandSamples;
-    const omt = 1 - t;
-    const px = omt*omt*omt * a.x + 3*omt*omt*t * c1x + 3*omt*t*t * c2x + t*t*t * b.x;
-    const py = omt*omt*omt * a.y + 3*omt*omt*t * c1y + 3*omt*t*t * c2y + t*t*t * b.y;
-    const tx = 3*omt*omt * (c1x - a.x) + 6*omt*t * (c2x - c1x) + 3*t*t * (b.x - c2x);
-    const ty = 3*omt*omt * (c1y - a.y) + 6*omt*t * (c2y - c1y) + 3*t*t * (b.y - c2y);
-    const tlen = Math.sqrt(tx*tx + ty*ty) || 1;
-    const ux = tx / tlen;
-    const uy = ty / tlen;
-    const nx = -uy;
-    const ny =  ux;
-    // Band perpendicular to body, full width across the body.
-    const bandHalf = 11;
-    const band = document.createElementNS(NS, "line");
-    band.setAttribute("x1", px + nx * bandHalf);
-    band.setAttribute("y1", py + ny * bandHalf);
-    band.setAttribute("x2", px - nx * bandHalf);
-    band.setAttribute("y2", py - ny * bandHalf);
-    band.setAttribute("stroke", palette.outline);
-    band.setAttribute("stroke-width", "2.5");
-    band.setAttribute("stroke-linecap", "round");
-    band.setAttribute("opacity", "0.7");
-    svg.appendChild(band);
-  }
-
-  // ----- 6. Dense spine spikes along the back. -----
-  const samples = Math.max(8, Math.floor(len / 14));
-  for (let s = 1; s < samples; s++) {
-    const t = s / samples;
-    const omt = 1 - t;
-    const px = omt*omt*omt * a.x + 3*omt*omt*t * c1x + 3*omt*t*t * c2x + t*t*t * b.x;
-    const py = omt*omt*omt * a.y + 3*omt*omt*t * c1y + 3*omt*t*t * c2y + t*t*t * b.y;
-    const tx = 3*omt*omt * (c1x - a.x) + 6*omt*t * (c2x - c1x) + 3*t*t * (b.x - c2x);
-    const ty = 3*omt*omt * (c1y - a.y) + 6*omt*t * (c2y - c1y) + 3*t*t * (b.y - c2y);
-    const tlen = Math.sqrt(tx*tx + ty*ty) || 1;
-    const ux = tx / tlen;
-    const uy = ty / tlen;
-    const nx = -uy;
-    const ny =  ux;
-    // Bigger, sharper spikes.
-    const baseW = 6;
-    const tipLen = 14;
-    const bx = px + nx * baseW;
-    const by = py + ny * baseW;
-    const tx2 = px - nx * baseW;
-    const ty2 = py - ny * baseW;
-    const tipx = px + nx * (baseW + tipLen);
-    const tipy = py + ny * (baseW + tipLen);
-    const tri = document.createElementNS(NS, "polygon");
-    tri.setAttribute("points", `${bx},${by} ${tx2},${ty2} ${tipx},${tipy}`);
-    tri.setAttribute("fill", palette.outline);
-    tri.setAttribute("stroke", palette.spine);
-    tri.setAttribute("stroke-width", "1.5");
-    tri.setAttribute("stroke-linejoin", "round");
-    svg.appendChild(tri);
-  }
-
-  // ----- 7. Fanged mouth decoration just past the head, pointing along
-  //         the start tangent. Two white fangs + a black maw — adds menace
-  //         in case the head sprite doesn't show the mouth clearly. -----
-  const mouthR = 16;
-  const mx = a.x + Math.cos(startTangent) * mouthR;
-  const my = a.y + Math.sin(startTangent) * mouthR;
-  // Maw (dark ellipse).
-  const maw = document.createElementNS(NS, "ellipse");
-  maw.setAttribute("cx", mx);
-  maw.setAttribute("cy", my);
-  maw.setAttribute("rx", "9");
-  maw.setAttribute("ry", "5");
-  maw.setAttribute("fill", "#0a0a0a");
-  maw.setAttribute("transform", `rotate(${startTangent * 180 / Math.PI}, ${mx}, ${my})`);
-  svg.appendChild(maw);
-  // Two fangs (white triangles).
-  for (const fySign of [1, -1]) {
-    const fx1 = mx + Math.cos(startTangent) * 8;
-    const fy1 = my + Math.sin(startTangent) * 8;
-    const fperpX = -Math.sin(startTangent);
-    const fperpY =  Math.cos(startTangent);
-    const fxL = fx1 + fperpX * 5 * fySign;
-    const fyL = fy1 + fperpY * 5 * fySign;
-    const fxR = fx1 - fperpX * 5 * fySign;
-    const fyR = fy1 - fperpY * 5 * fySign;
-    const fangTipX = mx + Math.cos(startTangent) * 14;
-    const fangTipY = my + Math.sin(startTangent) * 14;
-    const fang = document.createElementNS(NS, "polygon");
-    fang.setAttribute("points", `${fxL},${fyL} ${fxR},${fyR} ${fangTipX},${fangTipY}`);
-    fang.setAttribute("fill", "#f5f5f5");
-    fang.setAttribute("stroke", "#bdbdbd");
-    fang.setAttribute("stroke-width", "0.6");
-    svg.appendChild(fang);
-  }
-
-  // ----- 8. Forked tongue at the snake's head, flicking out along
-  //         startTangent past the head sprite. -----
-  const tongueStartR = 14;
-  const tsx = a.x + Math.cos(startTangent) * tongueStartR;
-  const tsy = a.y + Math.sin(startTangent) * tongueStartR;
-  const tipR = 36;
-  const tipx3 = a.x + Math.cos(startTangent) * tipR;
-  const tipy3 = a.y + Math.sin(startTangent) * tipR;
-  const forkR = 10;
-  const fx1 = tipx3 + Math.cos(startTangent + 2.5) * forkR;
-  const fy1 = tipy3 + Math.sin(startTangent + 2.5) * forkR;
-  const fx2 = tipx3 + Math.cos(startTangent - 2.5) * forkR;
-  const fy2 = tipy3 + Math.sin(startTangent - 2.5) * forkR;
-  const tongue = document.createElementNS(NS, "path");
-  tongue.setAttribute("d", `M ${tsx},${tsy} L ${tipx3},${tipy3} M ${tipx3},${tipy3} L ${fx1},${fy1} M ${tipx3},${tipy3} L ${fx2},${fy2}`);
-  tongue.setAttribute("stroke", "#c2185b");
-  tongue.setAttribute("stroke-width", "3.5");
-  tongue.setAttribute("stroke-linecap", "round");
-  tongue.setAttribute("fill", "none");
-  svg.appendChild(tongue);
-
-  svg.dataset.lastStartTangent = String(startTangent);
-}
-
+// (Snake body rendering moved to a single cartoon sprite + hue-rotate per
+// snake — see SNAKE_SPRITE constant above.)
 // ---------------------------------------------------------------------------
 // Pawn positioning — recentered, smaller offsets
 // ---------------------------------------------------------------------------

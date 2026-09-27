@@ -137,10 +137,10 @@ main {
 }
 .snake-piece { position: absolute; inset: 0; pointer-events: none; z-index: 2; }
 .decor-snake-head {
-  width: 13%;
-  height: 13%;
-  filter: drop-shadow(0 0 6px rgba(255, 30, 30, 0.55)) drop-shadow(0 0 14px rgba(180, 0, 0, 0.35)) drop-shadow(0 6px 8px rgba(0, 0, 0, 0.75));
-  animation: snake-head-wiggle 3.2s ease-in-out infinite, snake-head-glow 2.4s ease-in-out infinite;
+  width: 45%;
+  height: 45%;
+  filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.55));
+  animation: snake-head-wiggle 3.2s ease-in-out infinite;
 }
 .decor-ladder {
   width: 14%;
@@ -148,22 +148,20 @@ main {
   transform: translate(-50%, -50%) rotate(-12deg);
 }
 .decor-snake-tail {
-  width: 9%;
-  height: 9%;
-  filter: drop-shadow(0 3px 4px rgba(0, 0, 0, 0.4));
-  animation: snake-tail-wiggle 4s ease-in-out infinite;
+  position: absolute;
+  width: 8%;
+  height: 8%;
+  border-radius: 50%;
+  filter: drop-shadow(0 0 4px currentColor);
+  animation: snake-tail-pulse 1.8s ease-in-out infinite;
 }
 @keyframes snake-head-wiggle {
   0%, 100% { transform: translate(-50%, -50%) rotate(-3deg) scale(1); }
-  50%      { transform: translate(-50%, -54%) rotate(5deg) scale(1.08); }
+  50%      { transform: translate(-50%, -52%) rotate(4deg) scale(1.04); }
 }
-@keyframes snake-head-glow {
-  0%, 100% { filter: drop-shadow(0 0 6px rgba(255, 30, 30, 0.45)) drop-shadow(0 0 12px rgba(180, 0, 0, 0.25)) drop-shadow(0 6px 8px rgba(0, 0, 0, 0.75)); }
-  50%      { filter: drop-shadow(0 0 10px rgba(255, 60, 60, 0.85)) drop-shadow(0 0 22px rgba(220, 20, 20, 0.55)) drop-shadow(0 6px 8px rgba(0, 0, 0, 0.75)); }
-}
-@keyframes snake-tail-wiggle {
-  0%, 100% { transform: translate(-50%, -50%) rotate(8deg) scale(1); }
-  50%      { transform: translate(-50%, -48%) rotate(-6deg) scale(0.96); }
+@keyframes snake-tail-pulse {
+  0%, 100% { transform: translate(-50%, -50%) scale(1); opacity: 0.85; }
+  50%      { transform: translate(-50%, -50%) scale(1.25); opacity: 1; }
 }
 
 /* Pawns layer */
