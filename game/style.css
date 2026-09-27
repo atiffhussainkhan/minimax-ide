@@ -122,12 +122,40 @@ main {
   z-index: 1;
 }
 
+/* Decorative snake + ladder sprites positioned at the head of each */
+.decor-layer, .snake-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 2;
+}
+.decor {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.35));
+  object-fit: contain;
+}
+.decor-snake {
+  width: 18%;
+  height: 18%;
+  animation: snake-wiggle 2.4s ease-in-out infinite;
+}
+.decor-ladder {
+  width: 14%;
+  height: 14%;
+  transform: translate(-50%, -50%) rotate(-12deg);
+}
+@keyframes snake-wiggle {
+  0%, 100% { transform: translate(-50%, -50%) rotate(-6deg); }
+  50%      { transform: translate(-50%, -52%) rotate(6deg); }
+}
+
 /* Pawns layer */
 .pawns {
   position: absolute;
   inset: 0;
   pointer-events: none;
-  z-index: 2;
+  z-index: 3;
 }
 .pawn {
   position: absolute;

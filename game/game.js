@@ -16,11 +16,18 @@ const LADDERS = {
 };
 
 const PLAYERS = [
-  { id: 0, name: "Red",    color: "#e85a4f", sprite: "assets/pawn_red.png",    pos: 0 },
-  { id: 1, name: "Blue",   color: "#4f8fe8", sprite: "assets/pawn_blue.png",   pos: 0 },
-  { id: 2, name: "Green",  color: "#5dd39e", sprite: "assets/pawn_green.png",  pos: 0 },
-  { id: 3, name: "Yellow", color: "#ffd24c", sprite: "assets/pawn_yellow.png", pos: 0 },
+  { id: 0, name: "Red",    color: "#e85a4f", sprite: "assets/pawn_red_transparent.png",    pos: 0 },
+  { id: 1, name: "Blue",   color: "#4f8fe8", sprite: "assets/pawn_blue_transparent.png",   pos: 0 },
+  { id: 2, name: "Green",  color: "#5dd39e", sprite: "assets/pawn_green_transparent.png",  pos: 0 },
+  { id: 3, name: "Yellow", color: "#ffd24c", sprite: "assets/pawn_yellow_transparent.png", pos: 0 },
 ];
+
+const SNAKE_SPRITES = [
+  "assets/snake_green_transparent.png",
+  "assets/snake_yellow_transparent.png",
+];
+const LADDER_SPRITE = "assets/ladder_transparent.png";
+const DICE_SPRITE   = "assets/dice_transparent.png";
 
 const state = {
   turn: 0,
@@ -37,25 +44,20 @@ const state = {
 function positionForSquare(square) {
   if (square < 1 || square > 100) return null;
   const zeroBased = square - 1;
-  const row = Math.floor(zeroBased / COLS); // 0 = top row = 100..91
-  const colInRow = zeroBased % COLS;
-  // Even rows (0, 2, ...) go left-to-right; odd rows right-to-left
-  const visualCol = (row % 2 === 0) ? colInRow : (COLS - 1 - colInRow);
-  return {
-    row,
-    col: visualCol,
-  };
-}
-
-// Convert square number to (row, col) in the rendered grid (top-left = square 100)
-function cellOrderIndex(square) {
-  if (square < 1 || square > 100) return null;
-  const zeroBased = square - 1;
   const row = Math.floor(zeroBased / COLS);
   const colInRow = zeroBased % COLS;
   const visualCol = (row % 2 === 0) ? colInRow : (COLS - 1 - colInRow);
-  // Render index: row 0 first, col 0 first
-  return row * COLS + visualCol;
+  return { row, col: visualCol };
+}
+
+// Returns CSS-percent position for a square's center.
+function squareCenter(square) {
+  const pos = positionForSquare(square);
+  if (!pos) return null;
+  return {
+    left:  `${(pos.col + 0.5) * 10}%`,
+    top:   `${(pos.row + 0.5) * 10}%`,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -68,38 +70,26 @@ function buildBoard() {
   // Cell overlay (numbers)
   const grid = document.createElement("div");
   grid.className = "board-grid";
-  grid.style.position = "absolute";
-  grid.style.inset = "0";
+  grid.style.cssText = "position:absolute;inset:0;display:grid;grid-template-columns:repeat(10,1fr);grid-template-rows:repeat(10,1fr);";
   for (let i = 1; i <= 100; i++) {
     const cell = document.createElement("div");
     const visualRow = Math.floor((i - 1) / COLS);
     const colInRow = (i - 1) % COLS;
     const visualCol = (visualRow % 2 === 0) ? colInRow : (COLS - 1 - colInRow);
     cell.className = "cell " + (((visualRow + visualCol) % 2 === 0) ? "light" : "dark");
-    cell.style.gridRow = (visualRow + 1);
-    cell.style.gridColumn = (visualCol + 1);
-    cell.style.display = "flex";
-    cell.style.alignItems = "center";
-    cell.style.justifyContent = "center";
-    cell.style.fontSize = "0.85rem";
-    cell.style.fontWeight = "600";
+    cell.style.cssText = `grid-row:${visualRow + 1};grid-column:${visualCol + 1};display:flex;align-items:center;justify-content:center;font-size:0.85rem;font-weight:600;`;
     cell.textContent = i;
     grid.appendChild(cell);
   }
   board.appendChild(grid);
 
-  // Snakes/ladders SVG overlay
+  // SVG overlay for thin ladders & connecting lines
   const overlay = document.createElementNS("http://www.w3.org/2000/svg", "svg");
   overlay.setAttribute("class", "snakes-ladders");
   overlay.setAttribute("viewBox", `0 0 ${COLS * 100} ${ROWS * 100}`);
   overlay.setAttribute("preserveAspectRatio", "none");
-  overlay.style.position = "absolute";
-  overlay.style.inset = "0";
-  overlay.style.width = "100%";
-  overlay.style.height = "100%";
-  overlay.style.zIndex = "1";
-
-  // Ladders (green lines + rungs)
+  overlay.style.cssText = "position:absolute;inset:0;width:100%;height:100%;z-index:1;pointer-events:none;";
+  // Ladder rails
   Object.entries(LADDERS).forEach(([from, to]) => {
     const a = positionForSquare(Number(from));
     const b = positionForSquare(Number(to));
@@ -108,21 +98,19 @@ function buildBoard() {
     const y1 = (a.row + 0.5) * 100;
     const x2 = (b.col + 0.5) * 100;
     const y2 = (b.row + 0.5) * 100;
-    // rails
     const dx = x2 - x1, dy = y2 - y1;
     const len = Math.sqrt(dx*dx + dy*dy);
-    const ux = -dy / len * 12; // perpendicular offset
-    const uy = dx / len * 12;
+    const ux = -dy / len * 10;
+    const uy = dx / len * 10;
     [[x1+ux, y1+uy, x2+ux, y2+uy], [x1-ux, y1-uy, x2-ux, y2-uy]].forEach(([x, y, xn, yn]) => {
       const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
       line.setAttribute("x1", x); line.setAttribute("y1", y);
       line.setAttribute("x2", xn); line.setAttribute("y2", yn);
       line.setAttribute("stroke", "#7c4a1c");
-      line.setAttribute("stroke-width", "6");
+      line.setAttribute("stroke-width", "5");
       line.setAttribute("stroke-linecap", "round");
       overlay.appendChild(line);
     });
-    // rungs
     const steps = 5;
     for (let s = 1; s < steps; s++) {
       const t = s / steps;
@@ -134,42 +122,54 @@ function buildBoard() {
       rung.setAttribute("x1", x); rung.setAttribute("y1", y);
       rung.setAttribute("x2", xn); rung.setAttribute("y2", yn);
       rung.setAttribute("stroke", "#a36931");
-      rung.setAttribute("stroke-width", "4");
+      rung.setAttribute("stroke-width", "3");
       rung.setAttribute("stroke-linecap", "round");
       overlay.appendChild(rung);
     }
   });
-
-  // Snakes (red curves)
-  Object.entries(SNAKES).forEach(([from, to]) => {
-    const a = positionForSquare(Number(from));
-    const b = positionForSquare(Number(to));
-    if (!a || !b) return;
-    const x1 = (a.col + 0.5) * 100;
-    const y1 = (a.row + 0.5) * 100;
-    const x2 = (b.col + 0.5) * 100;
-    const y2 = (b.row + 0.5) * 100;
-    // Bezier with control points offset sideways
-    const cx1 = x1 + (x2 - x1) * 0.25 + (Math.random() - 0.5) * 30;
-    const cy1 = y1 - 30;
-    const cx2 = x2 - (x2 - x1) * 0.25 + (Math.random() - 0.5) * 30;
-    const cy2 = y2 + 30;
-    const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
-    path.setAttribute("d", `M ${x1} ${y1} C ${cx1} ${cy1}, ${cx2} ${cy2}, ${x2} ${y2}`);
-    path.setAttribute("stroke", "#d8323a");
-    path.setAttribute("stroke-width", "8");
-    path.setAttribute("fill", "none");
-    path.setAttribute("stroke-linecap", "round");
-    path.setAttribute("opacity", "0.85");
-    overlay.appendChild(path);
-  });
-
   board.appendChild(overlay);
 
-  // Pawns layer
+  // Ladder decorations at ladder bases (the wooden ladder sprite)
+  const decorLayer = document.createElement("div");
+  decorLayer.className = "decor-layer";
+  decorLayer.style.cssText = "position:absolute;inset:0;pointer-events:none;z-index:2;";
+  Object.keys(LADDERS).forEach((from, idx) => {
+    const img = document.createElement("img");
+    img.src = LADDER_SPRITE;
+    img.className = "decor decor-ladder";
+    const c = squareCenter(Number(from));
+    if (c) {
+      img.style.left = c.left;
+      img.style.top  = c.top;
+      img.style.transform = "translate(-50%, -50%)";
+    }
+    decorLayer.appendChild(img);
+  });
+  board.appendChild(decorLayer);
+
+  // Snake decorations at snake heads
+  const snakeLayer = document.createElement("div");
+  snakeLayer.className = "snake-layer";
+  snakeLayer.style.cssText = "position:absolute;inset:0;pointer-events:none;z-index:2;";
+  Object.keys(SNAKES).forEach((from, idx) => {
+    const img = document.createElement("img");
+    img.src = SNAKE_SPRITES[idx % SNAKE_SPRITES.length];
+    img.className = "decor decor-snake";
+    const c = squareCenter(Number(from));
+    if (c) {
+      img.style.left = c.left;
+      img.style.top  = c.top;
+      img.style.transform = "translate(-50%, -50%)";
+    }
+    snakeLayer.appendChild(img);
+  });
+  board.appendChild(snakeLayer);
+
+  // Pawns layer (on top)
   const pawns = document.createElement("div");
   pawns.className = "pawns";
   pawns.id = "pawns";
+  pawns.style.cssText = "position:absolute;inset:0;pointer-events:none;z-index:3;";
   board.appendChild(pawns);
 
   PLAYERS.forEach((p) => {
@@ -187,7 +187,7 @@ function buildBoard() {
 function buildPlayerList() {
   const ol = document.getElementById("player-list");
   ol.innerHTML = "";
-  PLAYERS.forEach((p, i) => {
+  PLAYERS.forEach((p) => {
     const li = document.createElement("li");
     li.id = `plist-${p.id}`;
     li.innerHTML = `
@@ -226,19 +226,19 @@ function updateActivePlayer() {
 function placePawn(player) {
   const el = document.getElementById(`pawn-${player.id}`);
   if (!el) return;
-  // Off-board (start): stack at "0" position (just before square 1, bottom-left)
-  let pos = positionForSquare(Math.max(1, player.pos));
   if (player.pos === 0) {
-    // place just below the board at the start
     el.style.left = "10%";
     el.style.top  = "105%";
-  } else if (pos) {
-    // Stack multiple players on the same square slightly offset
-    const hereCount = PLAYERS.filter((p) => p.pos === player.pos).indexOf(player);
-    const offset = (hereCount % 4) * 0.08 - 0.12;
-    el.style.left = `${(pos.col + 0.5) * 10 + offset * 100}%`;
-    el.style.top  = `${(pos.row + 0.5) * 10 - offset * 40}%`;
+    return;
   }
+  const pos = positionForSquare(player.pos);
+  if (!pos) return;
+  // Stack multiple players on the same square slightly offset.
+  const here = PLAYERS.filter((p) => p.pos === player.pos);
+  const idx = here.indexOf(player);
+  const offset = (idx % 4) * 0.07 - 0.105;
+  el.style.left = `${(pos.col + 0.5) * 10 + offset * 100}%`;
+  el.style.top  = `${(pos.row + 0.5) * 10 - offset * 40}%`;
 }
 
 function placeAllPawns() {
@@ -295,7 +295,6 @@ async function rollAndMove() {
     toast(`${player.name} rolled ${value} → ${to}`);
   }
 
-  // Check snake / ladder
   await sleep(700);
   if (LADDERS[player.pos]) {
     const dest = LADDERS[player.pos];
@@ -313,7 +312,6 @@ async function rollAndMove() {
     updateActivePlayer();
   }
 
-  // Win check
   if (player.pos === 100) {
     state.winner = player.id;
     toast(`🏆 ${player.name} wins!`);
@@ -322,7 +320,6 @@ async function rollAndMove() {
     return;
   }
 
-  // Next turn
   state.turn = (state.turn + 1) % PLAYERS.length;
   updateActivePlayer();
   state.moving = false;
