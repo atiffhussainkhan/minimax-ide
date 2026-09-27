@@ -1,0 +1,13 @@
+# Treat generated images as binary in diffs/merges, and use LFS for files >500 KB
+# (uncomment the LFS lines if you install `git-lfs` — brew install git-lfs)
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.webp binary
+*.gif binary
+
+# Optional LFS tracking for large image assets (uncomment after installing git-lfs):
+# *.png filter=lfs diff=lfs merge=lfs -text
+# *.jpg filter=lfs diff=lfs merge=lfs -text
+# *.jpeg filter=lfs diff=lfs merge=lfs -text
+# *.webp filter=lfs diff=lfs merge=lfs -text

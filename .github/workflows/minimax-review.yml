@@ -1,0 +1,68 @@
+name: MiniMax Code Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout PR
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Build diff
+        id: diff
+        run: |
+          git fetch origin ${{ github.event.pull_request.base.sha }} --depth=1
+          git diff ${{ github.event.pull_request.base.sha }}...HEAD > pr.diff
+          wc -l pr.diff
+
+      - name: MiniMax review
+        env:
+          MINIMAX_API_KEY: ${{ secrets.MINIMAX_API_KEY }}
+        run: |
+          if [ -z "$MINIMAX_API_KEY" ]; then
+            echo "::error::MINIMAX_API_KEY secret is not set. Add it at repo Settings -> Secrets and variables -> Actions."
+            exit 1
+          fi
+          DIFF=$(head -c 60000 pr.diff)
+          PROMPT=$(cat <<EOF
+          You are a senior code reviewer. Review the following diff and reply in Markdown with three sections:
+          1. Summary (1-3 sentences)
+          2. Issues (bullet list, severity tag: blocker/major/minor/nit)
+          3. Suggested fixes (concrete code suggestions)
+          Diff:
+          $DIFF
+          EOF
+          )
+          PAYLOAD=$(jq -n --arg p "$PROMPT" '{model:"MiniMax-M3",max_tokens:2000,messages:[{role:"user",content:$p}]}')
+          curl -sS https://api.minimax.io/v1/chat/completions \
+            -H "Authorization: Bearer $MINIMAX_API_KEY" \
+            -H "Content-Type: application/json" \
+            -d "$PAYLOAD" > review.json
+          cat review.json | jq -r '.choices[0].message.content' > review.md
+
+      - name: Post PR comment
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          header: minimax-review
+          path: review.md
+
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: minimax-review
+          path: |
+            pr.diff
+            review.md
+            review.json

@@ -1,0 +1,23 @@
+{
+  "//": "Workspace-scoped VS Code settings. Drop your MiniMax API key into scripts/.env (NOT this file).",
+  "//": "Get a key: https://platform.minimax.io/user-center/basic-information/interface-key",
+  "cline.apiProvider": "openai",
+  "cline.openAiBaseUrl": "https://api.minimax.io/v1",
+  "cline.openAiApiKey": "${env:MINIMAX_API_KEY}",
+  "cline.openAiModelId": "MiniMax-M3",
+  "cline.allowedCommands": [
+    "git status",
+    "git diff",
+    "git log",
+    "git show",
+    "npm test",
+    "npm run build",
+    "ls",
+    "cat",
+    "pwd"
+  ],
+  "continue.telemetryEnabled": false,
+  "github.copilot.enable": {
+    "*": false
+  }
+}

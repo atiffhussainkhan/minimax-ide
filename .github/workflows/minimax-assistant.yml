@@ -1,0 +1,68 @@
+name: MiniMax Issue Assistant
+
+on:
+  issues:
+    types: [opened]
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: 'Issue number to triage'
+        required: true
+
+permissions:
+  issues: write
+  contents: read
+
+jobs:
+  triage:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fetch issue
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issue_number = context.payload.issue?.number || ${{ github.event.inputs.issue_number }};
+            const { data: issue } = await github.rest.issues.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number
+            });
+            const fs = require('fs');
+            fs.writeFileSync('issue.json', JSON.stringify({
+              title: issue.title,
+              body: issue.body || '',
+              labels: issue.labels.map(l => l.name)
+            }, null, 2));
+            core.setOutput('issue_number', issue_number);
+
+      - name: MiniMax triage
+        env:
+          MINIMAX_API_KEY: ${{ secrets.MINIMAX_API_KEY }}
+        run: |
+          if [ -z "$MINIMAX_API_KEY" ]; then
+            echo "::error::MINIMAX_API_KEY secret missing."
+            exit 1
+          fi
+          BODY=$(jq -r '.title + "\n\n" + .body' issue.json)
+          PROMPT=$(cat <<EOF
+          Triage this issue. Reply in Markdown:
+          - Type: bug | feature | question | docs
+          - Priority: P0 | P1 | P2 | P3
+          - Suggested labels (5 max)
+          - One-paragraph summary
+          - Reproduction steps if it looks like a bug
+          Issue:
+          $BODY
+          EOF
+          )
+          PAYLOAD=$(jq -n --arg p "$PROMPT" '{model:"MiniMax-M3",max_tokens:1200,messages:[{role:"user",content:$p}]}')
+          curl -sS https://api.minimax.io/v1/chat/completions \
+            -H "Authorization: Bearer $MINIMAX_API_KEY" \
+            -H "Content-Type: application/json" \
+            -d "$PAYLOAD" | jq -r '.choices[0].message.content' > triage.md
+
+      - name: Comment on issue
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          header: minimax-triage
+          path: triage.md

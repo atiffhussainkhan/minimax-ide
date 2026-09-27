@@ -1,0 +1,17 @@
+# Secrets — never commit
+.env
+*.env
+**/.env
+vscode/continue-config.json
+vscode/cline-mcp.json
+
+# macOS / VS Code
+.DS_Store
+.vscode/
+!.vscode/settings.json
+.idea/
+
+# Build / node
+node_modules/
+dist/
+*.log

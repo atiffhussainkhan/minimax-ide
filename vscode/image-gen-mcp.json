@@ -1,0 +1,31 @@
+{
+  "_comment": "MCP config template for Cline / Continue / other VS Code AI clients. Copy into your client config and rename keys as needed. Each entry matches a server in your Mavis MCP roster — Mavis users don't need this file, but Cline / Continue / Claude Desktop users do.",
+  "mcpServers": {
+    "free-image": {
+      "url": "https://mcp.pollinations.ai/mcp",
+      "transport": "streamable-http",
+      "description": "Free Pollinations image gen (HTTP), unlimited, no auth"
+    },
+    "pollinations-stdio": {
+      "command": "npx",
+      "args": ["-y", "@pollinations/model-context-protocol"],
+      "transport": "stdio",
+      "description": "Official Pollinations stdio MCP (image+audio+text), no auth"
+    },
+    "huggingface": {
+      "url": "https://huggingface.co/mcp",
+      "transport": "streamable-http",
+      "description": "HuggingFace MCP, anonymous OK"
+    },
+    "ideogram": {
+      "url": "https://mcp.ideogram.ai/mcp",
+      "transport": "streamable-http",
+      "description": "Ideogram MCP, ~10 free/day, OAuth on first use"
+    },
+    "flux-bfl": {
+      "url": "https://mcp.bfl.ai",
+      "transport": "streamable-http",
+      "description": "Black Forest Labs FLUX MCP, free FLUX.2 Klein via OAuth"
+    }
+  }
+}
