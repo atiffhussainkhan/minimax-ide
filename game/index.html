@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Snake & Ladder — 3D Cartoon Edition</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="app">
+    <header>
+      <h1>🐍🪜 Snake &amp; Ladder</h1>
+      <p class="subtitle">3D Cartoon Edition · Free edition · Atif Hussain</p>
+    </header>
+
+    <main>
+      <section class="board-section">
+        <div id="board" class="board">
+          <!-- 100 squares rendered by JS -->
+        </div>
+      </section>
+
+      <aside class="sidebar">
+        <div class="panel status">
+          <h2>Status</h2>
+          <p id="status">Press <strong>Roll Dice</strong> to start.</p>
+          <div id="dice-display" class="dice-display">
+            <img src="assets/dice.png" alt="dice" id="dice-img">
+            <div id="dice-value">—</div>
+          </div>
+          <button id="roll-btn" class="primary">🎲 Roll Dice</button>
+        </div>
+
+        <div class="panel players">
+          <h2>Players</h2>
+          <ol id="player-list"></ol>
+        </div>
+
+        <div class="panel legend">
+          <h2>Rules</h2>
+          <ul>
+            <li>Roll dice to move your pawn.</li>
+            <li>🪜 Ladders climb up.</li>
+            <li>🐍 Snakes slide down.</li>
+            <li>First to reach square 100 wins!</li>
+          </ul>
+          <button id="reset-btn" class="ghost">↺ New Game</button>
+        </div>
+      </aside>
+    </main>
+
+    <div id="toast" class="toast" hidden></div>
+  </div>
+
+  <script src="game.js"></script>
+</body>
+</html>
