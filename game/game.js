@@ -716,9 +716,11 @@ function fullReset() {
 window.addEventListener("DOMContentLoaded", () => {
   // Optional URL params for headless testing:
   //   ?n=2&g=3   → auto-select 2 players + 3 games and start the tournament
+  //   ?test=1    → also skip the modal for quick local checks
   const urlParams = new URLSearchParams(location.search);
   const testPlayers = parseInt(urlParams.get("n"), 10);
   const testGames = parseInt(urlParams.get("g"), 10);
+  const isTest = urlParams.get("test") === "1";
 
   // Pre-game modal: pick both players and games, then click the Start button.
   // The Start button stays disabled until both selections are made.
@@ -761,6 +763,9 @@ window.addEventListener("DOMContentLoaded", () => {
   // Open the first-page modal on load so the user picks players + games.
   if (testPlayers >= 1 && testPlayers <= 4 && testGames >= 1 && testGames <= 9) {
     startTournament(testPlayers, testGames);
+  } else if (isTest) {
+    // ?test=1 with no other params → quick 2-player single game
+    startTournament(2, 1);
   } else {
     showPlayerModal();
   }
