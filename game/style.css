@@ -135,9 +135,10 @@ main {
   filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.35));
   object-fit: contain;
 }
+.snake-piece { position: absolute; inset: 0; pointer-events: none; z-index: 2; }
 .decor-snake-head {
-  width: 11%;
-  height: 11%;
+  width: 13%;
+  height: 13%;
   filter: drop-shadow(0 0 6px rgba(255, 30, 30, 0.55)) drop-shadow(0 0 14px rgba(180, 0, 0, 0.35)) drop-shadow(0 6px 8px rgba(0, 0, 0, 0.75));
   animation: snake-head-wiggle 3.2s ease-in-out infinite, snake-head-glow 2.4s ease-in-out infinite;
 }
@@ -147,10 +148,9 @@ main {
   transform: translate(-50%, -50%) rotate(-12deg);
 }
 .decor-snake-tail {
-  width: 7%;
-  height: 7%;
+  width: 9%;
+  height: 9%;
   filter: drop-shadow(0 3px 4px rgba(0, 0, 0, 0.4));
-  opacity: 0.92;
   animation: snake-tail-wiggle 4s ease-in-out infinite;
 }
 @keyframes snake-head-wiggle {
