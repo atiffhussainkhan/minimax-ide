@@ -36,6 +36,12 @@
           <ol id="player-list"></ol>
         </div>
 
+        <div class="panel tournament" id="tournament-panel" hidden>
+          <h2>Tournament</h2>
+          <p class="t-game">Game <span id="t-game-current">1</span> / <span id="t-game-total">3</span></p>
+          <ol id="t-wins-list" class="t-wins"></ol>
+        </div>
+
         <div class="panel legend">
           <h2>Rules</h2>
           <ul>
@@ -52,10 +58,13 @@
     <div id="toast" class="toast" hidden></div>
 
     <!-- Player count selector (shown before game starts and on "New Game") -->
+    <!-- Pre-game modal: pick number of players + number of games to compete -->
     <div id="player-modal" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="modal-title">
       <div class="modal">
         <h2 id="modal-title">🐍🪜 Snake &amp; Ladder</h2>
-        <p class="modal-sub">How many players?</p>
+        <p class="modal-sub">Set up your tournament</p>
+
+        <p class="modal-section-label">How many players?</p>
         <div class="player-count-grid">
           <button class="count-btn" data-count="1" type="button">
             <span class="emoji">🧍</span>
@@ -78,7 +87,49 @@
             <span class="hint">Hot-seat</span>
           </button>
         </div>
+
+        <p class="modal-section-label">How many games to compete?</p>
+        <div class="games-count-grid">
+          <button class="games-btn" data-games="1" type="button">
+            <span class="games-num">1</span>
+            <span class="games-hint">Single</span>
+          </button>
+          <button class="games-btn" data-games="3" type="button">
+            <span class="games-num">3</span>
+            <span class="games-hint">Best of 3</span>
+          </button>
+          <button class="games-btn" data-games="5" type="button">
+            <span class="games-num">5</span>
+            <span class="games-hint">Best of 5</span>
+          </button>
+          <button class="games-btn" data-games="7" type="button">
+            <span class="games-num">7</span>
+            <span class="games-hint">Best of 7</span>
+          </button>
+          <button class="games-btn" data-games="9" type="button">
+            <span class="games-num">9</span>
+            <span class="games-hint">Best of 9</span>
+          </button>
+        </div>
+
+        <button id="start-tournament-btn" type="button" class="start-btn" disabled>
+          ▶ Start Tournament
+        </button>
         <p class="modal-foot">3D cartoon edition · No accounts · No payment</p>
+      </div>
+    </div>
+
+    <!-- Tournament winner modal — appears after all games done -->
+    <div id="champion-modal" class="modal-backdrop champion-backdrop" hidden role="dialog" aria-modal="true" aria-labelledby="champion-title">
+      <div class="champion-modal">
+        <div class="champion-confetti" id="champion-confetti"></div>
+        <h2 id="champion-title">🏆 CHAMPION 🏆</h2>
+        <p id="champion-name" class="champion-name"></p>
+        <p id="champion-subtitle" class="champion-subtitle"></p>
+        <p id="champion-stats" class="champion-stats"></p>
+        <button id="champion-restart-btn" type="button" class="start-btn">
+          🔁 New Tournament
+        </button>
       </div>
     </div>
   </div>

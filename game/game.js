@@ -52,6 +52,42 @@ const state = {
   moving: false,
   winner: null,
   playerCount: 0,
+  // Tournament state
+  totalGames: 1,        // 1, 3, 5, 7, or 9
+  currentGame: 1,
+  wins: {},             // { playerId: count }
+};
+
+// Amazing per-game and champion messages — picked randomly so each win feels
+// fresh. Personalise by swapping names in here if you want.
+const GAME_WIN_LINES = [
+  (n) => `🔥 ${n} takes game ${state.currentGame} with style!`,
+  (n) => `⚡ ${n} dominates game ${state.currentGame}!`,
+  (n) => `👑 ${n} claims game ${state.currentGame} — beautiful!`,
+  (n) => `🐍 ${n} bites through game ${state.currentGame}!`,
+  (n) => `🏆 ${n} wins game ${state.currentGame} — pure class!`,
+  (n) => `✨ ${n} shines through game ${state.currentGame}!`,
+  (n) => `🎯 ${n} nails game ${state.currentGame} with perfect rolls!`,
+];
+
+const CHAMPION_LINES = {
+  default: [
+    (n, w) => `${n} is the ULTIMATE Snake & Ladder champion with ${w} glorious victories! 🐍👑`,
+    (n, w) => `Bow down — ${n} REIGNS SUPREME with ${w} wins! Unstoppable! 🌟`,
+    (n, w) => `${n} is the King/Queen of the board — ${w} wins, ZERO doubt! 👑`,
+    (n, w) => `LEGENDARY ${n}! ${w} wins in a row of domination! 🔥`,
+    (n, w) => `${n} conquered the board ${w} times — HALL OF FAME! 🏛️`,
+    (n, w) => `From start to finish, ${n} is the maestro with ${w} wins! 🎩`,
+  ],
+  close: [
+    (n, w) => `${n} edges it out with ${w} wins in a thriller of a tournament!`,
+    (n, w) => `${n} takes the crown by a hair — ${w} wins to glory!`,
+    (n, w) => `${n} wins the close battle with ${w} victories — breathtaking!`,
+  ],
+  dominant: [
+    (n, w) => `${n} DESTROYS the competition with ${w} massive wins! Total domination! 💥`,
+    (n, w) => `${n} was UNSTOPPABLE — ${w} wins, ${state.totalGames - w} for everyone else!`,
+  ],
 };
 
 // ---------------------------------------------------------------------------
@@ -462,9 +498,24 @@ async function rollAndMove() {
 
   if (player.pos === 100) {
     state.winner = player.id;
-    toast(`🏆 ${player.name} wins!`);
+    // Tournament win tracking — increment this player's win count
+    state.wins[player.id] = (state.wins[player.id] || 0) + 1;
+    const winLine = GAME_WIN_LINES[Math.floor(Math.random() * GAME_WIN_LINES.length)](player.name);
+    toast(`🏆 ${winLine}`);
     updateActivePlayer();
+    updateTournamentPanel();
     state.moving = false;
+    rollBtn.disabled = true;
+    // Wait so the toast can be seen, then either start next game or
+    // declare the overall champion.
+    setTimeout(() => {
+      if (state.currentGame < state.totalGames) {
+        state.currentGame++;
+        startNextGame();
+      } else {
+        showChampionModal();
+      }
+    }, 2400);
     return;
   }
 
@@ -502,45 +553,212 @@ function hidePlayerModal() {
 }
 
 function selectPlayerCount(n) {
+  // Legacy single-game flow (used if n is passed without games).
+  startTournament(n, 1);
+}
+
+function startTournament(n, totalGames) {
   n = Math.max(1, Math.min(4, n | 0));
+  totalGames = Math.max(1, totalGames | 0);
   state.playerCount = n;
-  // Slice the canonical player list to the chosen count and reset positions.
-  PLAYERS = ALL_PLAYERS.slice(0, n).map((p) => ({ ...p, pos: 0 }));
+  state.totalGames = totalGames;
+  state.currentGame = 1;
+  state.wins = {};
+  PLAYERS.forEach((p) => { state.wins[p.id] = 0; });
+  hidePlayerModal();
+  hideChampionModal();
+  buildBoard();
+  buildPlayerList();
+  placeAllPawns();
+  updateTournamentPanel();
+  document.getElementById("dice-value").textContent = "—";
+  const headerMsg = totalGames === 1
+    ? `Game on! <strong style="color:${PLAYERS[0].color}">${PLAYERS[0].name}</strong> rolls first.`
+    : `Tournament: ${totalGames} games. <strong style="color:${PLAYERS[0].color}">${PLAYERS[0].name}</strong> rolls first.`;
+  document.getElementById("status").innerHTML = headerMsg;
+  toast(totalGames === 1
+    ? `${n}-player game ready`
+    : `${n}-player tournament · ${totalGames} games`);
+}
+
+// Start the next game in a tournament — same players, fresh board.
+function startNextGame() {
+  PLAYERS = PLAYERS.map((p) => ({ ...p, pos: 0 }));
   state.turn = 0;
   state.rolled = null;
   state.moving = false;
   state.winner = null;
-  hidePlayerModal();
   buildBoard();
   buildPlayerList();
   placeAllPawns();
+  updateTournamentPanel();
   document.getElementById("dice-value").textContent = "—";
-  document.getElementById("status").innerHTML = `Game on! <strong style="color:${PLAYERS[0].color}">${PLAYERS[0].name}</strong> rolls first.`;
-  toast(`${n}-player game ready`);
+  const p0 = PLAYERS[0];
+  document.getElementById("status").innerHTML =
+    `Game ${state.currentGame} / ${state.totalGames} · <strong style="color:${p0.color}">${p0.name}</strong> rolls first.`;
+  document.getElementById("roll-btn").disabled = false;
+  toast(`Game ${state.currentGame} of ${state.totalGames} — fresh board!`);
+}
+
+// Render the tournament sidebar panel (wins so far).
+function updateTournamentPanel() {
+  const panel = document.getElementById("tournament-panel");
+  if (state.totalGames <= 1) {
+    panel.hidden = true;
+    return;
+  }
+  panel.hidden = false;
+  document.getElementById("t-game-current").textContent = state.currentGame;
+  document.getElementById("t-game-total").textContent = state.totalGames;
+  const list = document.getElementById("t-wins-list");
+  list.innerHTML = "";
+  // Find the current leader (most wins) for highlight.
+  let maxWins = 0;
+  PLAYERS.forEach((p) => {
+    if ((state.wins[p.id] || 0) > maxWins) maxWins = state.wins[p.id];
+  });
+  // Sort players by wins descending for a clear leaderboard.
+  const sorted = PLAYERS.slice().sort(
+    (a, b) => (state.wins[b.id] || 0) - (state.wins[a.id] || 0)
+  );
+  sorted.forEach((p) => {
+    const w = state.wins[p.id] || 0;
+    const li = document.createElement("li");
+    if (w === maxWins && maxWins > 0) li.classList.add("leader");
+    li.innerHTML = `
+      <span class="t-dot" style="background:${p.color}"></span>
+      <span class="t-name">${p.name}</span>
+      <span class="t-score">${w}</span>
+    `;
+    list.appendChild(li);
+  });
+}
+
+// Show the champion modal — picked the overall winner and pick a message
+// from the amazing-message pool based on how close/dominant the win was.
+function showChampionModal() {
+  // Find the champion (player with most wins).
+  let champ = PLAYERS[0];
+  let champWins = state.wins[champ.id] || 0;
+  PLAYERS.forEach((p) => {
+    const w = state.wins[p.id] || 0;
+    if (w > champWins) { champ = p;; champWins = w; }
+  });
+  const totalOther = state.totalGames - champWins;
+  const pool = (totalOther === 0)
+    ? CHAMPION_LINES.dominant
+    : (totalOther <= 1)
+      ? CHAMPION_LINES.close
+      : CHAMPION_LINES.default;
+  const line = pool[Math.floor(Math.random() * pool.length)](champ.name, champWins);
+  document.getElementById("champion-name").textContent = champ.name;
+  document.getElementById("champion-subtitle").textContent = line;
+  // Build stats line — final standings
+  const sorted = PLAYERS.slice().sort(
+    (a, b) => (state.wins[b.id] || 0) - (state.wins[a.id] || 0)
+  );
+  const stats = sorted.map((p) => `${p.name} ${state.wins[p.id] || 0}`)
+                     .join("  ·  ");
+  document.getElementById("champion-stats").innerHTML = `Final standings: ${stats}`;
+  // Spawn confetti
+  spawnConfetti();
+  document.getElementById("champion-modal").hidden = false;
+  document.body.classList.add("locked");
+}
+
+function hideChampionModal() {
+  document.getElementById("champion-modal").hidden = true;
+  document.body.classList.remove("locked");
+}
+
+// Spawn confetti pieces behind the champion text.
+function spawnConfetti() {
+  const box = document.getElementById("champion-confetti");
+  if (!box) return;
+  box.innerHTML = "";
+  const emojis = ["🎉", "✨", "🏆", "⭐", "💫", "🌟", "🎊", "💥"];
+  for (let i = 0; i < 28; i++) {
+    const s = document.createElement("span");
+    s.textContent = emojis[Math.floor(Math.random() * emojis.length)];
+    s.style.left = `${Math.random() * 100}%`;
+    s.style.fontSize = `${1 + Math.random() * 1.2}rem`;
+    s.style.animationDuration = `${2.4 + Math.random() * 2.6}s`;
+    s.style.animationDelay = `${Math.random() * 1.2}s`;
+    s.style.opacity = (0.7 + Math.random() * 0.3).toFixed(2);
+    box.appendChild(s);
+  }
+}
+
+// Reset the whole tournament — back to the first page (modal).
+function fullReset() {
+  hideChampionModal();
+  // Clear all selections in the modal
+  document.querySelectorAll(".count-btn.selected").forEach((b) => b.classList.remove("selected"));
+  document.querySelectorAll(".games-btn.selected").forEach((b) => b.classList.remove("selected"));
+  document.getElementById("start-tournament-btn").disabled = true;
+  showPlayerModal();
 }
 
 // ---------------------------------------------------------------------------
 // Boot
 // ---------------------------------------------------------------------------
 window.addEventListener("DOMContentLoaded", () => {
-  // Wire player-count buttons — these re-show the modal when clicked.
+  // Optional URL params for headless testing:
+  //   ?n=2&g=3   → auto-select 2 players + 3 games and start the tournament
+  const urlParams = new URLSearchParams(location.search);
+  const testPlayers = parseInt(urlParams.get("n"), 10);
+  const testGames = parseInt(urlParams.get("g"), 10);
+
+  // Pre-game modal: pick both players and games, then click the Start button.
+  // The Start button stays disabled until both selections are made.
+  let selectedPlayers = null;
+  let selectedGames = null;
   document.querySelectorAll(".count-btn").forEach((btn) => {
     btn.addEventListener("click", () => {
-      const n = parseInt(btn.dataset.count, 10) || 2;
-      selectPlayerCount(n);
+      selectedPlayers = parseInt(btn.dataset.count, 10) || 2;
+      document.querySelectorAll(".count-btn").forEach((b) => b.classList.remove("selected"));
+      btn.classList.add("selected");
+      const startBtn = document.getElementById("start-tournament-btn");
+      startBtn.disabled = !(selectedPlayers && selectedGames);
     });
   });
+  document.querySelectorAll(".games-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      selectedGames = parseInt(btn.dataset.games, 10) || 1;
+      document.querySelectorAll(".games-btn").forEach((b) => b.classList.remove("selected"));
+      btn.classList.add("selected");
+      const startBtn = document.getElementById("start-tournament-btn");
+      startBtn.disabled = !(selectedPlayers && selectedGames);
+    });
+  });
+  document.getElementById("start-tournament-btn").addEventListener("click", () => {
+    if (selectedPlayers && selectedGames) {
+      startTournament(selectedPlayers, selectedGames);
+    }
+  });
+
   document.getElementById("roll-btn").addEventListener("click", rollAndMove);
-  document.getElementById("reset-btn").addEventListener("click", resetGame);
-  // Hide modal by default; game boots directly with default 2 players
-  // so the player can start rolling dice immediately. The "New Game"
-  // button re-shows the modal for changing player count.
-  document.getElementById("player-modal").hidden = true;
-  selectPlayerCount(2);
+  document.getElementById("reset-btn").addEventListener("click", () => {
+    // "New Game" inside an active tournament — go back to the first page so
+    // the player can pick a new player count + games count.
+    fullReset();
+  });
+  document.getElementById("champion-restart-btn").addEventListener("click", () => {
+    fullReset();
+  });
+
+  // Open the first-page modal on load so the user picks players + games.
+  if (testPlayers >= 1 && testPlayers <= 4 && testGames >= 1 && testGames <= 9) {
+    startTournament(testPlayers, testGames);
+  } else {
+    showPlayerModal();
+  }
   // Keyboard shortcut: press R (or Space) to roll the dice, just like the
-  // Roll Dice button. Great for keyboard-driven play.
+  // Roll Dice button. Ignored when a modal is open.
   document.addEventListener("keydown", (e) => {
     if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA") return;
+    if (!document.getElementById("player-modal").hidden) return;
+    if (!document.getElementById("champion-modal").hidden) return;
     if (e.key === "r" || e.key === "R" || e.key === " ") {
       e.preventDefault();
       rollAndMove();
