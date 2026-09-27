@@ -62,8 +62,12 @@ const state = {
 function positionForSquare(square) {
   if (square < 1 || square > 100) return null;
   const zeroBased = square - 1;
-  const row = Math.floor(zeroBased / COLS);
+  // Board orientation is bottom-to-top: square 1 at bottom-left, square 100
+  // at top-right. The bottom row (row 0) goes left-to-right, the next row
+  // goes right-to-left, in classic zig-zag fashion.
+  const oldRow = Math.floor(zeroBased / COLS);
   const colInRow = zeroBased % COLS;
+  const row = (ROWS - 1) - oldRow;  // flip vertically so 1 is at bottom
   const visualCol = (row % 2 === 0) ? colInRow : (COLS - 1 - colInRow);
   return { row, col: visualCol };
 }
@@ -147,12 +151,14 @@ function buildBoard() {
   grid.className = "board-grid";
   for (let i = 1; i <= 100; i++) {
     const cell = document.createElement("div");
-    const visualRow = Math.floor((i - 1) / COLS);
-    const colInRow = (i - 1) % COLS;
-    const visualCol = (visualRow % 2 === 0) ? colInRow : (COLS - 1 - colInRow);
-    cell.className = "cell " + (((visualRow + visualCol) % 2 === 0) ? "light" : "dark");
-    cell.style.gridRow = visualRow + 1;
-    cell.style.gridColumn = visualCol + 1;
+    // Use positionForSquare() so cell layout matches the snake/ladder
+    // sprite positions. orientation is bottom-up: square 1 at bottom-left,
+    // square 100 at top-right.
+    const pos = positionForSquare(i);
+    const checker = (pos.row + pos.col) % 2 === 0;
+    cell.className = "cell " + (checker ? "light" : "dark");
+    cell.style.gridRow = pos.row + 1;
+    cell.style.gridColumn = pos.col + 1;
     cell.textContent = i;
     grid.appendChild(cell);
   }
@@ -254,8 +260,8 @@ function buildBoard() {
 // midpoint of the path, and a smaller tail copy at the destination square.
 // ---------------------------------------------------------------------------
 const SNAKE_SPRITE_HREF = "assets/snake_real2/snake_main.png";
-const SNAKE_SPRITE_W = 962;  // raw sprite width (px)
-const SNAKE_SPRITE_H = 383;  // raw sprite height (px)
+const SNAKE_SPRITE_W = 1280;  // raw sprite width (px) — long slender sprite
+const SNAKE_SPRITE_H = 300;   // raw sprite height (px) — thin body
 
 function draw3DSnake(svg, fromSquare, toSquare, palette, idx) {
   const a = squareSvg(fromSquare);
