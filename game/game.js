@@ -456,12 +456,21 @@ function toast(message, ms = 1800) {
 // Game flow
 // ---------------------------------------------------------------------------
 async function rollAndMove() {
+  // Self-heal: if PLAYERS is empty (e.g., stale cache, partial init),
+  // try to populate it from ALL_PLAYERS using state.playerCount so the
+  // Roll Dice button still works after a refresh mid-game.
+  if (PLAYERS.length === 0 && state.playerCount > 0) {
+    PLAYERS = ALL_PLAYERS.slice(0, state.playerCount).map((p) => ({ ...p, pos: 0 }));
+    buildPlayerList();
+    placeAllPawns();
+  }
   if (state.moving || state.winner !== null || PLAYERS.length === 0) return;
   state.moving = true;
   const rollBtn = document.getElementById("roll-btn");
   rollBtn.disabled = true;
 
   const player = PLAYERS[state.turn];
+  if (!player) { state.moving = false; rollBtn.disabled = false; return; }
   const value = rollDie();
   showDice(value);
 
