@@ -62,14 +62,15 @@ const state = {
 function positionForSquare(square) {
   if (square < 1 || square > 100) return null;
   const zeroBased = square - 1;
-  // Board orientation is bottom-to-top: square 1 at bottom-left, square 100
-  // at top-right. The bottom row (row 0) goes left-to-right, the next row
-  // goes right-to-left, in classic zig-zag fashion.
+  // Pure left-to-right, bottom-to-top layout (no zigzag):
+  //   square 1   = bottom-left
+  //   square 10  = bottom-right
+  //   square 11  = next row up, leftmost
+  //   square 100 = top-right
   const oldRow = Math.floor(zeroBased / COLS);
-  const colInRow = zeroBased % COLS;
+  const col = zeroBased % COLS;
   const row = (ROWS - 1) - oldRow;  // flip vertically so 1 is at bottom
-  const visualCol = (row % 2 === 0) ? colInRow : (COLS - 1 - colInRow);
-  return { row, col: visualCol };
+  return { row, col };
 }
 
 // Returns square center as {left, top} percentages of board.
@@ -173,23 +174,41 @@ function buildBoard() {
   overlay.style.cssText = "position:absolute;inset:0;width:100%;height:100%;z-index:1;pointer-events:none;";
 
   // Ladder rails (drawn first so snakes layer above).
+  // Brighter golden wood, thicker strokes, dark outline so each ladder
+  // pops against the busy 3D cartoon board.
   Object.entries(LADDERS).forEach(([from, to]) => {
     const a = squareSvg(Number(from));
     const b = squareSvg(Number(to));
     if (!a || !b) return;
     const dx = b.x - a.x, dy = b.y - a.y;
     const len = Math.sqrt(dx*dx + dy*dy);
-    const ux = -dy / len * 10;
-    const uy = dx / len * 10;
+    const railOffset = 14;  // wider so ladder reads as a real ladder
+    const ux = -dy / len * railOffset;
+    const uy = dx / len * railOffset;
+
+    // 1. Dark outline pass — drawn first behind each rail for contrast.
+    [[a.x+ux, a.y+uy, b.x+ux, b.y+uy], [a.x-ux, a.y-uy, b.x-ux, b.y-uy]].forEach(([x, y, xn, yn]) => {
+      const shadow = document.createElementNS(NS, "line");
+      shadow.setAttribute("x1", x); shadow.setAttribute("y1", y);
+      shadow.setAttribute("x2", xn); shadow.setAttribute("y2", yn);
+      shadow.setAttribute("stroke", "#1a0c04");
+      shadow.setAttribute("stroke-width", "11");
+      shadow.setAttribute("stroke-linecap", "round");
+      overlay.appendChild(shadow);
+    });
+
+    // 2. Bright wooden rails on top of the outline.
     [[a.x+ux, a.y+uy, b.x+ux, b.y+uy], [a.x-ux, a.y-uy, b.x-ux, b.y-uy]].forEach(([x, y, xn, yn]) => {
       const line = document.createElementNS(NS, "line");
       line.setAttribute("x1", x); line.setAttribute("y1", y);
       line.setAttribute("x2", xn); line.setAttribute("y2", yn);
-      line.setAttribute("stroke", "#7c4a1c");
-      line.setAttribute("stroke-width", "5");
+      line.setAttribute("stroke", "#e8b260");
+      line.setAttribute("stroke-width", "7");
       line.setAttribute("stroke-linecap", "round");
       overlay.appendChild(line);
     });
+
+    // 3. Rungs — light golden with dark outline.
     const steps = 5;
     for (let s = 1; s < steps; s++) {
       const t = s / steps;
@@ -197,11 +216,20 @@ function buildBoard() {
       const y = a.y + dy * t + uy;
       const xn = a.x + dx * t - ux;
       const yn = a.y + dy * t - uy;
+      // Dark outline behind rung
+      const rungShadow = document.createElementNS(NS, "line");
+      rungShadow.setAttribute("x1", x); rungShadow.setAttribute("y1", y);
+      rungShadow.setAttribute("x2", xn); rungShadow.setAttribute("y2", yn);
+      rungShadow.setAttribute("stroke", "#1a0c04");
+      rungShadow.setAttribute("stroke-width", "7");
+      rungShadow.setAttribute("stroke-linecap", "round");
+      overlay.appendChild(rungShadow);
+      // Bright rung on top
       const rung = document.createElementNS(NS, "line");
       rung.setAttribute("x1", x); rung.setAttribute("y1", y);
       rung.setAttribute("x2", xn); rung.setAttribute("y2", yn);
-      rung.setAttribute("stroke", "#a36931");
-      rung.setAttribute("stroke-width", "3");
+      rung.setAttribute("stroke", "#f4cf7a");
+      rung.setAttribute("stroke-width", "4");
       rung.setAttribute("stroke-linecap", "round");
       overlay.appendChild(rung);
     }
