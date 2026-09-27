@@ -564,6 +564,8 @@ function startTournament(n, totalGames) {
   state.totalGames = totalGames;
   state.currentGame = 1;
   state.wins = {};
+  // Populate PLAYERS from the canonical ALL_PLAYERS list (slice to n).
+  PLAYERS = ALL_PLAYERS.slice(0, n).map((p) => ({ ...p, pos: 0 }));
   PLAYERS.forEach((p) => { state.wins[p.id] = 0; });
   hidePlayerModal();
   hideChampionModal();
