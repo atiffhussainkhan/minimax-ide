@@ -136,32 +136,25 @@ main {
   object-fit: contain;
 }
 .snake-piece { position: absolute; inset: 0; pointer-events: none; z-index: 2; }
-.decor-snake-head {
-  width: 14%;
-  height: 14%;
+.decor-snake {
+  width: 16%;
+  height: 16%;
   filter: drop-shadow(0 3px 5px rgba(0, 0, 0, 0.5));
-  animation: snake-head-wiggle 3.2s ease-in-out infinite;
 }
+.decor-snake-start { animation: snake-start-wiggle 3.2s ease-in-out infinite; }
+.decor-snake-end   { animation: snake-end-wiggle 3.2s ease-in-out infinite; }
 .decor-ladder {
   width: 14%;
   height: 14%;
   transform: translate(-50%, -50%) rotate(-12deg);
 }
-.decor-snake-tail {
-  position: absolute;
-  width: 6%;
-  height: 6%;
-  border-radius: 50%;
-  filter: drop-shadow(0 0 4px currentColor);
-  animation: snake-tail-pulse 1.8s ease-in-out infinite;
+@keyframes snake-start-wiggle {
+  0%, 100% { transform: translate(-50%, -50%) rotate(-3deg); }
+  50%      { transform: translate(-50%, -52%) rotate(4deg); }
 }
-@keyframes snake-head-wiggle {
-  0%, 100% { transform: translate(-50%, -50%) rotate(-3deg) scale(1); }
-  50%      { transform: translate(-50%, -52%) rotate(4deg) scale(1.05); }
-}
-@keyframes snake-tail-pulse {
-  0%, 100% { transform: translate(-50%, -50%) scale(1); opacity: 0.85; }
-  50%      { transform: translate(-50%, -50%) scale(1.3); opacity: 1; }
+@keyframes snake-end-wiggle {
+  0%, 100% { transform: translate(-50%, -50%) rotate(177deg) scale(0.85); }
+  50%      { transform: translate(-50%, -52%) rotate(184deg) scale(0.85); }
 }
 
 /* Pawns layer */

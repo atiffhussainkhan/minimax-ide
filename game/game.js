@@ -164,24 +164,14 @@ function buildBoard() {
   }
   board.appendChild(grid);
 
-  // ---- SVG overlay for snake bodies + ladder rails ----
+  // ---- SVG overlay for ladder rails only (snakes are now DOM sprites
+  // placed directly at start + end squares — no connecting line). ----
   const NS = "http://www.w3.org/2000/svg";
   const overlay = document.createElementNS(NS, "svg");
   overlay.setAttribute("class", "snakes-ladders");
   overlay.setAttribute("viewBox", `0 0 ${COLS * 100} ${ROWS * 100}`);
   overlay.setAttribute("preserveAspectRatio", "none");
   overlay.style.cssText = "position:absolute;inset:0;width:100%;height:100%;z-index:1;pointer-events:none;";
-
-  // Draw cute cartoon snake bodies — each in its own group with hue-rotate
-  // tint matching the head sprite at the bite square.
-  Object.entries(SNAKES).forEach(([from, to], idx) => {
-    const palette = SNAKE_PALETTE[idx % SNAKE_PALETTE.length];
-    const g = document.createElementNS(NS, "g");
-    g.setAttribute("class", "snake-svg");
-    g.setAttribute("style", `filter: hue-rotate(${palette.hue}); opacity: 0.75;`);
-    drawSnakeBody(g, Number(from), Number(to), palette);
-    overlay.appendChild(g);
-  });
 
   // Ladder rails (drawn first so snakes layer above).
   Object.entries(LADDERS).forEach(([from, to]) => {
@@ -240,45 +230,44 @@ function buildBoard() {
   });
   board.appendChild(decorLayer);
 
-  // ---- Snake head sprites — face at the bite square.
-  // Each snake sprite is wrapped in a div with opacity 0.75 (25% transparent)
-  // and a hue-rotate filter so they match the SVG body underneath.
+  // ---- Snake pieces — same cartoon snake sprite at start (face biting)
+  // and at end (tail dropping the player). No SVG body line connecting them.
+  // Each sprite is wrapped in opacity 0.75 + hue-rotate tint.
   const snakeLayer = document.createElement("div");
   snakeLayer.className = "snake-layer";
-  Object.entries(SNAKES).forEach(([from], idx) => {
+  Object.entries(SNAKES).forEach(([from, to], idx) => {
     const palette = SNAKE_PALETTE[idx % SNAKE_PALETTE.length];
 
-    // Wrapper applies opacity + hue-rotate to the head sprite so it
-    // matches the SVG body underneath.
     const snakeWrap = document.createElement("div");
     snakeWrap.className = "snake-piece";
     snakeWrap.style.cssText = `opacity:0.75; filter: hue-rotate(${palette.hue});`;
 
-    // Cartoon snake head sprite — placed at the BITE square (start).
-    const headImg = document.createElement("img");
-    headImg.src = SNAKE_SPRITE;
-    headImg.className = "decor decor-snake-head";
-    headImg.alt = "snake";
+    // START sprite — face at the bite square (normal orientation).
+    const startImg = document.createElement("img");
+    startImg.src = SNAKE_SPRITE;
+    startImg.className = "decor decor-snake decor-snake-start";
+    startImg.alt = "snake head";
     const c = squareCenter(Number(from));
     if (c) {
-      headImg.style.left = c.left;
-      headImg.style.top  = c.top;
-      headImg.style.transform = "translate(-50%, -50%)";
+      startImg.style.left = c.left;
+      startImg.style.top  = c.top;
+      startImg.style.transform = "translate(-50%, -50%)";
     }
-    snakeWrap.appendChild(headImg);
+    snakeWrap.appendChild(startImg);
 
-    // Small tail-end dot at the destination square.
-    const tailDot = document.createElement("div");
-    tailDot.className = "decor-snake-tail";
-    const t = squareCenter(SNAKES[from]);
+    // END sprite — same snake flipped 180° so the face points away and
+    // only the back/tail is visible (the part that drags the player down).
+    const endImg = document.createElement("img");
+    endImg.src = SNAKE_SPRITE;
+    endImg.className = "decor decor-snake decor-snake-end";
+    endImg.alt = "snake tail";
+    const t = squareCenter(Number(to));
     if (t) {
-      tailDot.style.left = t.left;
-      tailDot.style.top  = t.top;
-      tailDot.style.transform = "translate(-50%, -50%)";
-      tailDot.style.background = palette.tint;
-      tailDot.style.boxShadow = `0 0 6px ${palette.tint}`;
+      endImg.style.left = t.left;
+      endImg.style.top  = t.top;
+      endImg.style.transform = "translate(-50%, -50%) rotate(180deg) scale(0.85)";
     }
-    snakeWrap.appendChild(tailDot);
+    snakeWrap.appendChild(endImg);
 
     snakeLayer.appendChild(snakeWrap);
   });
@@ -300,64 +289,8 @@ function buildBoard() {
 }
 
 // ---------------------------------------------------------------------------
-// Cute cartoon snake body rendering — smooth curving body from start to end
-// square. Pairs with the SNAKE_SPRITE head placed at the start square.
-// Style: thick outline + main color + belly highlight, smooth S-bend, no
-// scary fangs/spikes — just a friendly cartoon snake body.
-function drawSnakeBody(svg, fromSquare, toSquare, palette) {
-  const a = squareSvg(fromSquare);
-  const b = squareSvg(toSquare);
-  if (!a || !b) return;
-
-  // S-curve geometry: two cubic-bezier control points weave the body
-  // through the squares it crosses.
-  const dx = b.x - a.x;
-  const dy = b.y - a.y;
-  const len = Math.sqrt(dx * dx + dy * dy);
-  const perpX = -dy / len;
-  const perpY =  dx / len;
-  const offset = Math.min(len * 0.45, 200);
-  const c1x = a.x + dx * 0.33 + perpX * offset;
-  const c1y = a.y + dy * 0.33 + perpY * offset;
-  const c2x = a.x + dx * 0.66 - perpX * offset;
-  const c2y = a.y + dy * 0.66 - perpY * offset;
-
-  const pathData = `M ${a.x},${a.y} C ${c1x},${c1y} ${c2x},${c2y} ${b.x},${b.y}`;
-  const NS = "http://www.w3.org/2000/svg";
-
-  // 1. Dark outline (defines the body's silhouette).
-  const outline = document.createElementNS(NS, "path");
-  outline.setAttribute("d", pathData);
-  outline.setAttribute("stroke", palette.dark);
-  outline.setAttribute("stroke-width", "24");
-  outline.setAttribute("stroke-linecap", "round");
-  outline.setAttribute("stroke-linejoin", "round");
-  outline.setAttribute("fill", "none");
-  svg.appendChild(outline);
-
-  // 2. Main body color (the snake's scaled back).
-  const body = document.createElementNS(NS, "path");
-  body.setAttribute("d", pathData);
-  body.setAttribute("stroke", palette.body);
-  body.setAttribute("stroke-width", "18");
-  body.setAttribute("stroke-linecap", "round");
-  body.setAttribute("stroke-linejoin", "round");
-  body.setAttribute("fill", "none");
-  svg.appendChild(body);
-
-  // 3. Belly highlight stripe on the inside of each curve.
-  const belly = document.createElementNS(NS, "path");
-  belly.setAttribute("d", pathData);
-  belly.setAttribute("stroke", palette.light);
-  belly.setAttribute("stroke-width", "6");
-  belly.setAttribute("stroke-linecap", "round");
-  belly.setAttribute("stroke-linejoin", "round");
-  belly.setAttribute("fill", "none");
-  belly.setAttribute("opacity", "0.85");
-  belly.setAttribute("transform", `translate(${perpX * -5}, ${perpY * -5})`);
-  svg.appendChild(belly);
-}
-
+// (No SVG snake body — start + end use the same sprite directly on the
+// board squares.)
 // ---------------------------------------------------------------------------
 // Pawn positioning — recentered, smaller offsets
 // ---------------------------------------------------------------------------
