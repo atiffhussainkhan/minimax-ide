@@ -299,10 +299,12 @@ function draw3DSnake(svg, fromSquare, toSquare, palette, idx) {
 
   // Sprite aspect ratio = 962/383 ≈ 2.51
   const aspect = SNAKE_SPRITE_W / SNAKE_SPRITE_H;
-  // Make the snake sprite 1.3x the path length so it visually fills the
-  // gap between the two squares — but clamp so it stays inside the board
-  // even for long snakes. Minimum 220 so even short snakes look clear.
-  const targetW = Math.min(Math.max(len * 1.3, 220), 560);
+  // Snake sprite width = 1.0x path length so the snake just spans from
+  // start square to end square. Clamped 180–360 SVG units so:
+  //   - short snakes (e.g. 52→42) don't blow past their squares
+  //   - long snakes (e.g. 99→54) stay inside the board and don't overlap
+  //     with neighboring snakes/ladders
+  const targetW = Math.min(Math.max(len * 1.0, 180), 360);
   const targetH = targetW / aspect;
 
   const img = document.createElementNS(NS, "image");
@@ -315,12 +317,12 @@ function draw3DSnake(svg, fromSquare, toSquare, palette, idx) {
   img.setAttribute("filter", `url(#${gid})`);
   // Place the sprite: x/y is top-left corner before transform.
   // SVG image y-axis grows downward, and the sprite's head is on the RIGHT
-  // side of the image. To align head→a (start) and tail→b (end), we flip
-  // the sprite horizontally if the path angle is "going left" (so head
-  // always points to the start). Simple heuristic: rotate by angle, but
-  // also flip horizontally by 180 when angle is in the bottom half so the
-  // head ends up on the correct side.
-  const flip = (angle > 90 || angle < -90) ? -1 : 1;
+  // side of the image. We rotate by the path angle so the snake's body axis
+  // matches A→B. The sprite's head naturally ends up in the +angle
+  // direction (= toward B = end square). Since the snake should BITE at the
+  // start square (A) and tail-slide to the end (B), we flip horizontally
+  // so the head points back toward A.
+  const flip = -1;
   img.setAttribute(
     "transform",
     `translate(${cx} ${cy}) rotate(${angle}) scale(${flip * targetW / SNAKE_SPRITE_W} ${targetH / SNAKE_SPRITE_H}) translate(${-SNAKE_SPRITE_W / 2} ${-SNAKE_SPRITE_H / 2})`
@@ -487,7 +489,7 @@ function selectPlayerCount(n) {
 // Boot
 // ---------------------------------------------------------------------------
 window.addEventListener("DOMContentLoaded", () => {
-  // Show modal immediately; game builds once user picks a player count.
+  // Wire player-count buttons — these re-show the modal when clicked.
   document.querySelectorAll(".count-btn").forEach((btn) => {
     btn.addEventListener("click", () => {
       const n = parseInt(btn.dataset.count, 10) || 2;
@@ -496,6 +498,18 @@ window.addEventListener("DOMContentLoaded", () => {
   });
   document.getElementById("roll-btn").addEventListener("click", rollAndMove);
   document.getElementById("reset-btn").addEventListener("click", resetGame);
-  // Hide modal by default until JS wires it up.
-  document.getElementById("player-modal").hidden = false;
+  // Hide modal by default; game boots directly with default 2 players
+  // so the player can start rolling dice immediately. The "New Game"
+  // button re-shows the modal for changing player count.
+  document.getElementById("player-modal").hidden = true;
+  selectPlayerCount(2);
+  // Keyboard shortcut: press R (or Space) to roll the dice, just like the
+  // Roll Dice button. Great for keyboard-driven play.
+  document.addEventListener("keydown", (e) => {
+    if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA") return;
+    if (e.key === "r" || e.key === "R" || e.key === " ") {
+      e.preventDefault();
+      rollAndMove();
+    }
+  });
 });
