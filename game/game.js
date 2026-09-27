@@ -15,14 +15,8 @@ const LADDERS = {
   51: 67, 63: 81, 71: 91, 80: 99,
 };
 
-// One cartoon snake sprite, used as the head for all 5 snakes with
-// hue-rotate tint variations so they're distinguishable on the board.
-// The full sprite shows the head + a coil of body — we render the head
-// at the bite square and use an SVG body curve to span to the tail.
-const SNAKE_SPRITE = "assets/cute/cute_snake_main.png";
-
-// Each snake's tint family (after hue-rotate). Body colors are derived
-// directly from these tints so the SVG body matches the sprite.
+// Each snake's tint family. Body / dark / light are used by the SVG-based
+// 3D cartoon snake renderer so the gradient shading reads as 3D.
 const SNAKE_PALETTE = [
   { hue: "0deg",   body: "#4caf50", dark: "#1b5e20", light: "#a5d6a7", tint: "#4caf50" }, // emerald
   { hue: "330deg", body: "#ffb74d", dark: "#bf6f1c", light: "#ffe082", tint: "#ffb74d" }, // gold-rose
@@ -164,8 +158,7 @@ function buildBoard() {
   }
   board.appendChild(grid);
 
-  // ---- SVG overlay for ladder rails only (snakes are now DOM sprites
-  // placed directly at start + end squares — no connecting line). ----
+  // ---- SVG overlay for snake bodies + ladder rails ----
   const NS = "http://www.w3.org/2000/svg";
   const overlay = document.createElementNS(NS, "svg");
   overlay.setAttribute("class", "snakes-ladders");
@@ -183,7 +176,7 @@ function buildBoard() {
     const ux = -dy / len * 10;
     const uy = dx / len * 10;
     [[a.x+ux, a.y+uy, b.x+ux, b.y+uy], [a.x-ux, a.y-uy, b.x-ux, b.y-uy]].forEach(([x, y, xn, yn]) => {
-      const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+      const line = document.createElementNS(NS, "line");
       line.setAttribute("x1", x); line.setAttribute("y1", y);
       line.setAttribute("x2", xn); line.setAttribute("y2", yn);
       line.setAttribute("stroke", "#7c4a1c");
@@ -198,7 +191,7 @@ function buildBoard() {
       const y = a.y + dy * t + uy;
       const xn = a.x + dx * t - ux;
       const yn = a.y + dy * t - uy;
-      const rung = document.createElementNS("http://www.w3.org/2000/svg", "line");
+      const rung = document.createElementNS(NS, "line");
       rung.setAttribute("x1", x); rung.setAttribute("y1", y);
       rung.setAttribute("x2", xn); rung.setAttribute("y2", yn);
       rung.setAttribute("stroke", "#a36931");
@@ -208,9 +201,17 @@ function buildBoard() {
     }
   });
 
-  // No SVG snake bodies — each snake uses the single cartoon sprite (placed
-  // in the snakeLayer below) with a hue-rotate tint per snake. The SVG
-  // overlay only carries ladder rails now.
+  // 3D cartoon snake bodies — drawn as SVG groups with gradients +
+  // cartoon face at the head + tail curl at the end.
+  Object.entries(SNAKES).forEach(([from, to], idx) => {
+    const palette = SNAKE_PALETTE[idx % SNAKE_PALETTE.length];
+    const g = document.createElementNS(NS, "g");
+    g.setAttribute("class", "snake-3d");
+    g.setAttribute("opacity", "0.75");
+    draw3DSnake(g, Number(from), Number(to), palette, idx);
+    overlay.appendChild(g);
+  });
+
   board.appendChild(overlay);
 
   // ---- Ladder decorations (small wooden ladder sprite at the base of each ladder) ----
@@ -230,49 +231,6 @@ function buildBoard() {
   });
   board.appendChild(decorLayer);
 
-  // ---- Snake pieces — same cartoon snake sprite at start (face biting)
-  // and at end (tail dropping the player). No SVG body line connecting them.
-  // Each sprite is wrapped in opacity 0.75 + hue-rotate tint.
-  const snakeLayer = document.createElement("div");
-  snakeLayer.className = "snake-layer";
-  Object.entries(SNAKES).forEach(([from, to], idx) => {
-    const palette = SNAKE_PALETTE[idx % SNAKE_PALETTE.length];
-
-    const snakeWrap = document.createElement("div");
-    snakeWrap.className = "snake-piece";
-    snakeWrap.style.cssText = `opacity:0.75; filter: hue-rotate(${palette.hue});`;
-
-    // START sprite — face at the bite square (normal orientation).
-    const startImg = document.createElement("img");
-    startImg.src = SNAKE_SPRITE;
-    startImg.className = "decor decor-snake decor-snake-start";
-    startImg.alt = "snake head";
-    const c = squareCenter(Number(from));
-    if (c) {
-      startImg.style.left = c.left;
-      startImg.style.top  = c.top;
-      startImg.style.transform = "translate(-50%, -50%)";
-    }
-    snakeWrap.appendChild(startImg);
-
-    // END sprite — same snake flipped 180° so the face points away and
-    // only the back/tail is visible (the part that drags the player down).
-    const endImg = document.createElement("img");
-    endImg.src = SNAKE_SPRITE;
-    endImg.className = "decor decor-snake decor-snake-end";
-    endImg.alt = "snake tail";
-    const t = squareCenter(Number(to));
-    if (t) {
-      endImg.style.left = t.left;
-      endImg.style.top  = t.top;
-      endImg.style.transform = "translate(-50%, -50%) rotate(180deg) scale(0.85)";
-    }
-    snakeWrap.appendChild(endImg);
-
-    snakeLayer.appendChild(snakeWrap);
-  });
-  board.appendChild(snakeLayer);
-
   // ---- Pawns layer ----
   const pawns = document.createElement("div");
   pawns.className = "pawns";
@@ -289,9 +247,229 @@ function buildBoard() {
 }
 
 // ---------------------------------------------------------------------------
-// (No SVG snake body — start + end use the same sprite directly on the
-// board squares.)
+// 3D cartoon snake — drawn entirely in SVG with gradients for 3D shading.
+// Friendly cartoon face at the head square, long curving body, tail curl
+// at the destination square. The full snake reads as one cartoon creature.
 // ---------------------------------------------------------------------------
+function draw3DSnake(svg, fromSquare, toSquare, palette, idx) {
+  const a = squareSvg(fromSquare);
+  const b = squareSvg(toSquare);
+  if (!a || !b) return;
+
+  const NS = "http://www.w3.org/2000/svg";
+
+  // S-curve geometry: cubic bezier from head to tail with two control
+  // points that weave the body through the squares it crosses.
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  const len = Math.sqrt(dx * dx + dy * dy);
+  const perpX = -dy / len;
+  const perpY =  dx / len;
+  const offset = Math.min(len * 0.42, 220);
+  const c1x = a.x + dx * 0.33 + perpX * offset;
+  const c1y = a.y + dy * 0.33 + perpY * offset;
+  const c2x = a.x + dx * 0.66 - perpX * offset;
+  const c2y = a.y + dy * 0.66 - perpY * offset;
+  const pathData = `M ${a.x},${a.y} C ${c1x},${c1y} ${c2x},${c2y} ${b.x},${b.y}`;
+
+  // Unique gradient IDs so the 5 snakes don't share gradient definitions.
+  const gid = `snake3d-${idx}`;
+
+  // ---- 1. Define gradients (3D shading) ----
+  const defs = document.createElementNS(NS, "defs");
+
+  // Body radial gradient — light highlight on top, darker on the sides.
+  const bodyGrad = document.createElementNS(NS, "linearGradient");
+  bodyGrad.setAttribute("id", `${gid}-body`);
+  bodyGrad.setAttribute("gradientUnits", "userSpaceOnUse");
+  bodyGrad.setAttribute("x1", a.x - perpX * 18);
+  bodyGrad.setAttribute("y1", a.y - perpY * 18);
+  bodyGrad.setAttribute("x2", a.x + perpX * 18);
+  bodyGrad.setAttribute("y2", a.y + perpY * 18);
+  bodyGrad.innerHTML = `
+    <stop offset="0%"   stop-color="${palette.light}" />
+    <stop offset="40%"  stop-color="${palette.body}" />
+    <stop offset="100%" stop-color="${palette.dark}" />
+  `;
+  defs.appendChild(bodyGrad);
+
+  // Belly highlight (offset).
+  const bellyGrad = document.createElementNS(NS, "linearGradient");
+  bellyGrad.setAttribute("id", `${gid}-belly`);
+  bellyGrad.setAttribute("gradientUnits", "userSpaceOnUse");
+  bellyGrad.setAttribute("x1", "0");
+  bellyGrad.setAttribute("y1", "0");
+  bellyGrad.setAttribute("x2", "0");
+  bellyGrad.setAttribute("y2", "1");
+  bellyGrad.innerHTML = `
+    <stop offset="0%"   stop-color="${palette.light}" stop-opacity="0" />
+    <stop offset="100%" stop-color="${palette.light}" stop-opacity="0.9" />
+  `;
+  defs.appendChild(bellyGrad);
+
+  // Head radial gradient — bright glossy cartoon look.
+  const headGrad = document.createElementNS(NS, "radialGradient");
+  headGrad.setAttribute("id", `${gid}-head`);
+  headGrad.setAttribute("cx", "35%");
+  headGrad.setAttribute("cy", "30%");
+  headGrad.setAttribute("r", "70%");
+  headGrad.innerHTML = `
+    <stop offset="0%"   stop-color="${palette.light}" />
+    <stop offset="55%"  stop-color="${palette.body}" />
+    <stop offset="100%" stop-color="${palette.dark}" />
+  `;
+  defs.appendChild(headGrad);
+
+  svg.appendChild(defs);
+
+  // ---- 2. Body shadow (a darker, slightly offset duplicate for depth) ----
+  const shadow = document.createElementNS(NS, "path");
+  shadow.setAttribute("d", pathData);
+  shadow.setAttribute("stroke", "rgba(0,0,0,0.35)");
+  shadow.setAttribute("stroke-width", "30");
+  shadow.setAttribute("stroke-linecap", "round");
+  shadow.setAttribute("stroke-linejoin", "round");
+  shadow.setAttribute("fill", "none");
+  shadow.setAttribute("transform", `translate(2, 3)`);
+  svg.appendChild(shadow);
+
+  // ---- 3. Body outline (dark border) ----
+  const outline = document.createElementNS(NS, "path");
+  outline.setAttribute("d", pathData);
+  outline.setAttribute("stroke", palette.dark);
+  outline.setAttribute("stroke-width", "26");
+  outline.setAttribute("stroke-linecap", "round");
+  outline.setAttribute("stroke-linejoin", "round");
+  outline.setAttribute("fill", "none");
+  svg.appendChild(outline);
+
+  // ---- 4. Body fill (3D gradient) ----
+  const body = document.createElementNS(NS, "path");
+  body.setAttribute("d", pathData);
+  body.setAttribute("stroke", `url(#${gid}-body)`);
+  body.setAttribute("stroke-width", "20");
+  body.setAttribute("stroke-linecap", "round");
+  body.setAttribute("stroke-linejoin", "round");
+  body.setAttribute("fill", "none");
+  svg.appendChild(body);
+
+  // ---- 5. Glossy top highlight along the body (thin bright stroke) ----
+  const gloss = document.createElementNS(NS, "path");
+  gloss.setAttribute("d", pathData);
+  gloss.setAttribute("stroke", "rgba(255,255,255,0.55)");
+  gloss.setAttribute("stroke-width", "5");
+  gloss.setAttribute("stroke-linecap", "round");
+  gloss.setAttribute("stroke-linejoin", "round");
+  gloss.setAttribute("fill", "none");
+  gloss.setAttribute("transform", `translate(${perpX * -5}, ${perpY * -5})`);
+  svg.appendChild(gloss);
+
+  // ---- 6. Belly underglow (lighter, on the inside of the curve) ----
+  const belly = document.createElementNS(NS, "path");
+  belly.setAttribute("d", pathData);
+  belly.setAttribute("stroke", palette.light);
+  belly.setAttribute("stroke-width", "6");
+  belly.setAttribute("stroke-linecap", "round");
+  belly.setAttribute("stroke-linejoin", "round");
+  belly.setAttribute("fill", "none");
+  belly.setAttribute("opacity", "0.7");
+  belly.setAttribute("transform", `translate(${perpX * 7}, ${perpY * 7})`);
+  svg.appendChild(belly);
+
+  // ---- 7. Cartoon face at the head (along the start tangent) ----
+  // Tangent at the head (direction the snake is "looking" along the path).
+  const headTangent = Math.atan2(c1y - a.y, c1x - a.x);
+  const headR = 22;
+  const headCx = a.x;
+  const headCy = a.y;
+  // Head sphere.
+  const head = document.createElementNS(NS, "circle");
+  head.setAttribute("cx", headCx);
+  head.setAttribute("cy", headCy);
+  head.setAttribute("r", headR);
+  head.setAttribute("fill", `url(#${gid}-head)`);
+  head.setAttribute("stroke", palette.dark);
+  head.setAttribute("stroke-width", "3");
+  svg.appendChild(head);
+  // Two big cartoon eyes — white circles with dark pupils + tiny highlight.
+  // Eye centers are positioned slightly forward of the head center, along
+  // the tangent direction (so the snake "looks" along its body).
+  const eyeFwd = 6;
+  const eyeSide = 8;
+  const eyeR = 5;
+  for (const side of [-1, 1]) {
+    const ex = headCx + Math.cos(headTangent) * eyeFwd + Math.cos(headTangent + Math.PI/2) * eyeSide * side;
+    const ey = headCy + Math.sin(headTangent) * eyeFwd + Math.sin(headTangent + Math.PI/2) * eyeSide * side;
+    // White eye.
+    const eyeWhite = document.createElementNS(NS, "circle");
+    eyeWhite.setAttribute("cx", ex);
+    eyeWhite.setAttribute("cy", ey);
+    eyeWhite.setAttribute("r", eyeR);
+    eyeWhite.setAttribute("fill", "#ffffff");
+    eyeWhite.setAttribute("stroke", palette.dark);
+    eyeWhite.setAttribute("stroke-width", "1");
+    svg.appendChild(eyeWhite);
+    // Black pupil.
+    const pupil = document.createElementNS(NS, "circle");
+    pupil.setAttribute("cx", ex + Math.cos(headTangent) * 1.2);
+    pupil.setAttribute("cy", ey + Math.sin(headTangent) * 1.2);
+    pupil.setAttribute("r", eyeR * 0.55);
+    pupil.setAttribute("fill", "#0a0a0a");
+    svg.appendChild(pupil);
+    // Tiny highlight dot.
+    const sparkle = document.createElementNS(NS, "circle");
+    sparkle.setAttribute("cx", ex + Math.cos(headTangent) * 1.8 + Math.cos(headTangent - Math.PI/2) * 1.2);
+    sparkle.setAttribute("cy", ey + Math.sin(headTangent) * 1.8 + Math.sin(headTangent - Math.PI/2) * 1.2);
+    sparkle.setAttribute("r", 1.2);
+    sparkle.setAttribute("fill", "#ffffff");
+    svg.appendChild(sparkle);
+  }
+  // Friendly smile — small curved arc on the head, oriented forward.
+  const smileR = 6;
+  const smileCx = headCx + Math.cos(headTangent) * 12;
+  const smileCy = headCy + Math.sin(headTangent) * 12 + Math.sin(headTangent + Math.PI/2) * 4;
+  const smile = document.createElementNS(NS, "path");
+  // Half-circle smile.
+  const smilePath = `M ${smileCx - smileR},${smileCy} A ${smileR} ${smileR} 0 0 0 ${smileCx + smileR},${smileCy}`;
+  smile.setAttribute("d", smilePath);
+  smile.setAttribute("stroke", palette.dark);
+  smile.setAttribute("stroke-width", "2.2");
+  smile.setAttribute("stroke-linecap", "round");
+  smile.setAttribute("fill", "none");
+  svg.appendChild(smile);
+
+  // ---- 8. Tail-end curl at the destination ----
+  // A small spiral curl that shows where the snake drops the player.
+  const tailCx = b.x;
+  const tailCy = b.y;
+  const tailR = 14;
+  // Outer spiral ring.
+  const tailRing = document.createElementNS(NS, "circle");
+  tailRing.setAttribute("cx", tailCx);
+  tailRing.setAttribute("cy", tailCy);
+  tailRing.setAttribute("r", tailR);
+  tailRing.setAttribute("fill", `url(#${gid}-head)`);
+  tailRing.setAttribute("stroke", palette.dark);
+  tailRing.setAttribute("stroke-width", "3");
+  svg.appendChild(tailRing);
+  // Inner spiral mark.
+  const tailInner = document.createElementNS(NS, "circle");
+  tailInner.setAttribute("cx", tailCx);
+  tailInner.setAttribute("cy", tailCy);
+  tailInner.setAttribute("r", tailR * 0.5);
+  tailInner.setAttribute("fill", "none");
+  tailInner.setAttribute("stroke", palette.dark);
+  tailInner.setAttribute("stroke-width", "2.5");
+  tailInner.setAttribute("opacity", "0.8");
+  svg.appendChild(tailInner);
+  // Center dot.
+  const tailCenter = document.createElementNS(NS, "circle");
+  tailCenter.setAttribute("cx", tailCx);
+  tailCenter.setAttribute("cy", tailCy);
+  tailCenter.setAttribute("r", tailR * 0.18);
+  tailCenter.setAttribute("fill", palette.dark);
+  svg.appendChild(tailCenter);
+}
 // Pawn positioning — recentered, smaller offsets
 // ---------------------------------------------------------------------------
 function placePawn(player) {

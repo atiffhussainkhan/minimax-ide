@@ -135,26 +135,12 @@ main {
   filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.35));
   object-fit: contain;
 }
-.snake-piece { position: absolute; inset: 0; pointer-events: none; z-index: 2; }
-.decor-snake {
-  width: 16%;
-  height: 16%;
-  filter: drop-shadow(0 3px 5px rgba(0, 0, 0, 0.5));
-}
-.decor-snake-start { animation: snake-start-wiggle 3.2s ease-in-out infinite; }
-.decor-snake-end   { animation: snake-end-wiggle 3.2s ease-in-out infinite; }
+/* 3D cartoon snake styles now live entirely in SVG (draw3DSnake). The
+   SVG group has opacity:0.75 applied at construction time. */
 .decor-ladder {
   width: 14%;
   height: 14%;
   transform: translate(-50%, -50%) rotate(-12deg);
-}
-@keyframes snake-start-wiggle {
-  0%, 100% { transform: translate(-50%, -50%) rotate(-3deg); }
-  50%      { transform: translate(-50%, -52%) rotate(4deg); }
-}
-@keyframes snake-end-wiggle {
-  0%, 100% { transform: translate(-50%, -50%) rotate(177deg) scale(0.85); }
-  50%      { transform: translate(-50%, -52%) rotate(184deg) scale(0.85); }
 }
 
 /* Pawns layer */
