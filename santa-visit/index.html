@@ -64,7 +64,8 @@
     <input type="file" id="file" accept="image/*" hidden>
     <button class="ghost" id="sample">Use a sample room</button>
     <button id="play" disabled>▶ Play the visit</button>
-    <button class="ghost" id="wipe" disabled>🧹 Forget my photo</button>
+    <button class="ghost" id="cards" disabled>📮 Postcards</button>
+    <button class="ghost" id="forget" disabled>🧹 Forget my photo</button>
   </div>
 
   <div class="note">
@@ -73,6 +74,8 @@
     it, and his walk between them is derived from the points you set. Nobody else
     does this; every other app just changes your face.
   </div>
+
+  <p id="note" style="color:#ffd24c;font-weight:600;margin:10px 0 0"></p>
 
   <label class="privacy">
     <input type="checkbox" id="light" checked>
@@ -83,6 +86,7 @@
 
 <script src="santa.js"></script>
 <script src="engine.js"></script>
+<script src="postcards.js"></script>
 <script>
 (function () {
   const cv = document.getElementById("cv"), ctx = cv.getContext("2d");
@@ -93,7 +97,7 @@
     table: document.getElementById("pin-table"),
   };
   const playBtn = document.getElementById("play");
-  const wipeBtn = document.getElementById("wipe");
+  const wipeBtn = document.getElementById("forget");
 
   let photo = null, anchors = null, phase = 0, t0 = 0, raf = 0;
 
@@ -220,8 +224,41 @@
       table: { x: cv.width * 0.36, y: cv.height * 0.72 },
     };
     playBtn.disabled = false; wipeBtn.disabled = false;
+    document.getElementById("cards").disabled = false;
     showPins(true); placePins(); draw(0);
   }
+
+  // ---- postcards --------------------------------------------------------
+  // Three keepsakes from the same room: the captured moment, a certificate,
+  // and the route map. All drawn on this device; nothing is uploaded.
+  const CARDS = [
+    ["evidence",    "The Evidence"],
+    ["certificate", "Certificate of Good Behaviour"],
+    ["route",       "Santa's Route Log"],
+  ];
+  let cardIdx = 0;
+  const note = document.getElementById("note");
+  function drawCard() {
+    if (!anchors) return;
+    // Flatten the room into its own canvas so the card can composite it.
+    const base = document.createElement("canvas");
+    base.width = cv.width; base.height = cv.height;
+    base.getContext("2d").drawImage(photo, 0, 0, cv.width, cv.height);
+    ctx.clearRect(0, 0, cv.width, cv.height);
+    Postcards.render(ctx, CARDS[cardIdx][0], {
+      w: cv.width, h: cv.height, room: base, anchors,
+      roomW: cv.width, roomH: cv.height,
+      date: new Date().toLocaleDateString(undefined, { day: "numeric", month: "long" }),
+    });
+  }
+  document.getElementById("cards").addEventListener("click", () => {
+    if (!anchors || !photo) return;
+    stopPlay(); showPins(false); setStep(2);
+    drawCard();
+    note.textContent = CARDS[cardIdx][1];
+    cardIdx = (cardIdx + 1) % CARDS.length;
+    document.getElementById("cards").textContent = "📮 Next: " + CARDS[cardIdx][1];
+  });
 
   playBtn.addEventListener("click", play);
   document.getElementById("light").addEventListener("change", () => draw(0));
@@ -233,7 +270,8 @@
     document.getElementById("file").value = "";
     anchors = null; showPins(false);
     ctx.clearRect(0, 0, cv.width, cv.height);
-    playBtn.disabled = true; wipeBtn.disabled = true; setStep(0);
+    playBtn.disabled = true; wipeBtn.disabled = true;
+    document.getElementById("cards").disabled = true; setStep(0);
   });
 
   // Start on the sample so the page is never empty.
