@@ -24,11 +24,6 @@ var P = JSON.parse($.NSString.stringWithContentsOfFileEncodingError(
   PARAMS_PATH, $.NSUTF8StringEncoding, null).js);
 
 var RUNS = P.runs || 1000;
-// Resolve the game directory instead of hardcoding an absolute path, so the
-// suite runs correctly from ANY checkout. tools/run_all.sh cds into this
-// folder, so the current directory is the game root.
-var GAME_DIR = $.NSProcessInfo.processInfo.environment.objectForKey("GAME_DIR")
-  || ObjC.unwrap($.NSFileManager.defaultManager.currentDirectoryPath);
 
 var buildEnv = new Function("ObjC", "$", "__ENV_GAME_DIR__", ENV + "\n;return buildEnv;")(
   ObjC, $, GAME_DIR);

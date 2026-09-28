@@ -9,11 +9,16 @@
 //   mv /tmp/_render.html.png /tmp/board.png
 ObjC.import('Foundation');
 
-// Resolve the game directory instead of hardcoding an absolute path, so the
-// suite runs correctly from ANY checkout. tools/run_all.sh cds into this
-// folder, so the current directory is the game root.
-var GAME_DIR = $.NSProcessInfo.processInfo.environment.objectForKey("GAME_DIR")
-  || ObjC.unwrap($.NSFileManager.defaultManager.currentDirectoryPath);
+// Resolve the game directory instead of hardcoding an absolute path, so this
+// suite runs correctly from ANY checkout. tools/run_all.sh cds into this folder,
+// so the current working directory is the game root. GAME_DIR overrides it.
+function _envDir() {
+  var v = $.NSProcessInfo.processInfo.environment.objectForKey("GAME_DIR");
+  if (v === null || v === undefined) return "";
+  var s = String(v);
+  return (s === "[id nil]" || s === "<null>" || s === "") ? "" : s;   // JXA nil is truthy
+}
+var GAME_DIR = _envDir() || ObjC.unwrap($.NSFileManager.defaultManager.currentDirectoryPath);
 
 function El(tag) {
   this.tagName = (tag || "div").toUpperCase();
