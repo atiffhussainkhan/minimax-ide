@@ -8,9 +8,18 @@
 //   osascript -l JavaScript tools/enduser_test.js
 ObjC.import('Foundation');
 
+// Resolve the game directory instead of hardcoding an absolute path, so this
+// suite runs correctly from ANY checkout. tools/run_all.sh cds into this folder,
+// so the current working directory is the game root. GAME_DIR overrides it.
+function _envDir() {
+  var v = $.NSProcessInfo.processInfo.environment.objectForKey("GAME_DIR");
+  if (v === null || v === undefined) return "";
+  var s = String(v);
+  return (s === "[id nil]" || s === "<null>" || s === "") ? "" : s;   // JXA nil is truthy
+}
+var GAME_DIR = _envDir() || ObjC.unwrap($.NSFileManager.defaultManager.currentDirectoryPath);
 var ENV = $.NSString.stringWithContentsOfFileEncodingError(
-  "/Users/mac/Documents/Mini AI/game/tools/qa_env.js", $.NSUTF8StringEncoding, null).js;
-var GAME_DIR = "/Users/mac/Documents/Mini AI/game";
+  GAME_DIR + "/tools/qa_env.js", $.NSUTF8StringEncoding, null).js;
 var buildEnv = new Function("ObjC", "$", "__ENV_GAME_DIR__", ENV + "\n;return buildEnv;")(
   ObjC, $, GAME_DIR);
 

@@ -9,7 +9,11 @@
 //   mv /tmp/_render.html.png /tmp/board.png
 ObjC.import('Foundation');
 
-var GAME_DIR = "/Users/mac/Documents/Mini AI/game";
+// Resolve the game directory instead of hardcoding an absolute path, so the
+// suite runs correctly from ANY checkout. tools/run_all.sh cds into this
+// folder, so the current directory is the game root.
+var GAME_DIR = $.NSProcessInfo.processInfo.environment.objectForKey("GAME_DIR")
+  || ObjC.unwrap($.NSFileManager.defaultManager.currentDirectoryPath);
 
 function El(tag) {
   this.tagName = (tag || "div").toUpperCase();

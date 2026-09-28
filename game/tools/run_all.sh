@@ -69,7 +69,20 @@ echo "# 5/5  board render (snake legibility check)"
 echo "############################################################"
 osascript -l JavaScript tools/render_board.js >/dev/null 2>&1
 rm -f "$TMP"/_render.html.png
-qlmanage -t -s 1500 -o "$TMP" _render.html >/dev/null 2>&1
+# qlmanage can hang when the display is locked/asleep, so bound it: a visual
+# check must never be able to wedge the whole gate.
+qlmanage -t -s 1500 -o "$TMP" _render.html >/dev/null 2>&1 &
+ql_pid=$!
+for _ in $(seq 1 30); do
+  kill -0 "$ql_pid" 2>/dev/null || break
+  sleep 1
+done
+if kill -0 "$ql_pid" 2>/dev/null; then
+  kill -9 "$ql_pid" 2>/dev/null
+  echo "  SKIPPED: qlmanage timed out (display likely locked)."
+  echo "           Visual preview only — it proves nothing about correctness, so it does"
+  echo "           not fail the suite. Run it on a machine with an unlocked display."
+fi
 if [ -f "$TMP/_render.html.png" ]; then
   cp "$TMP/_render.html.png" /tmp/board_preview.png
   passes=$((passes + 1))
