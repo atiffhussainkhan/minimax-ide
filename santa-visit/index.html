@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Santa's Visit</title>
+<style>
+  :root { --bg:#12172a; --panel:#1b2238; --line:rgba(255,255,255,.10);
+          --text:#e9edf7; --mute:#98a2c0; --accent:#ffd24c; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--text);
+         font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; }
+  header { padding:18px 22px; border-bottom:1px solid var(--line); }
+  header h1 { margin:0; font-size:1.15rem; }
+  header p { margin:4px 0 0; color:var(--mute); font-size:.88rem; }
+  .wrap { max-width:1000px; margin:0 auto; padding:20px 22px 60px; }
+  .steps { display:flex; gap:10px; flex-wrap:wrap; margin:16px 0; }
+  .step { background:var(--panel); border:1px solid var(--line); border-radius:999px;
+          padding:6px 14px; font-size:.85rem; color:var(--mute); }
+  .step.on { color:#1a1400; background:var(--accent); border-color:var(--accent); font-weight:600; }
+  .stage { position:relative; background:#0b1020; border:1px solid var(--line);
+           border-radius:16px; overflow:hidden; }
+  canvas { display:block; width:100%; height:auto; }
+  .pin { position:absolute; transform:translate(-50%,-50%); cursor:grab;
+         font-size:26px; filter:drop-shadow(0 2px 4px rgba(0,0,0,.6)); user-select:none; }
+  .pin.drag { cursor:grabbing; }
+  .pin span { position:absolute; left:50%; top:100%; transform:translateX(-50%);
+              background:rgba(0,0,0,.65); color:#fff; font-size:11px; padding:2px 7px;
+              border-radius:999px; white-space:nowrap; }
+  .bar { display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-top:14px; }
+  button { font:inherit; font-weight:600; padding:11px 18px; border-radius:11px;
+           border:0; cursor:pointer; background:linear-gradient(135deg,#ffd24c,#ff8b3d); color:#1a1400; }
+  button.ghost { background:var(--panel); color:var(--text); border:1px solid var(--line); }
+  button:disabled { opacity:.45; cursor:not-allowed; }
+  .note { background:#1d2740; border:1px solid var(--line); border-left:3px solid var(--accent);
+          border-radius:10px; padding:12px 14px; margin:16px 0; color:var(--mute); font-size:.88rem; }
+  .note b { color:var(--text); }
+  label.privacy { display:flex; gap:8px; align-items:flex-start; color:var(--mute);
+                  font-size:.85rem; margin-top:14px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>🎅 Santa's Visit</h1>
+  <p>Drop Santa into your own living room. Nothing is uploaded — it all happens in this tab.</p>
+</header>
+
+<div class="wrap">
+  <div class="steps" id="steps">
+    <div class="step on" data-s="0">1 · Your photo</div>
+    <div class="step" data-s="1">2 · Place the spots</div>
+    <div class="step" data-s="2">3 · Watch</div>
+  </div>
+
+  <div class="stage" id="stage">
+    <canvas id="cv" width="900" height="560"></canvas>
+    <div class="pin" id="pin-door"   style="left:0;top:0">🚪<span>Door</span></div>
+    <div class="pin" id="pin-sofa"   style="left:0;top:0">🛋️<span>Sofa</span></div>
+    <div class="pin" id="pin-table"  style="left:0;top:0">🍪<span>Table</span></div>
+  </div>
+
+  <div class="bar">
+    <button class="ghost" id="choose">Choose a photo</button>
+    <input type="file" id="file" accept="image/*" hidden>
+    <button class="ghost" id="sample">Use a sample room</button>
+    <button id="play" disabled>▶ Play the visit</button>
+    <button class="ghost" id="wipe" disabled>🧹 Forget my photo</button>
+  </div>
+
+  <div class="note">
+    <b>Where will Santa sit?</b> Drag the three markers onto your own door, sofa and
+    table. That is the whole trick — Santa is placed in <i>your</i> room, scaled to
+    it, and his walk between them is derived from the points you set. Nobody else
+    does this; every other app just changes your face.
+  </div>
+
+  <label class="privacy">
+    <input type="checkbox" id="light" checked>
+    Match Santa to the room's light (shadow direction and colour). This is what
+    stops a composited character looking like a sticker.
+  </label>
+</div>
+
+<script src="santa.js"></script>
+<script src="engine.js"></script>
+<script>
+(function () {
+  const cv = document.getElementById("cv"), ctx = cv.getContext("2d");
+  const stage = document.getElementById("stage");
+  const pins = {
+    door: document.getElementById("pin-door"),
+    sofa: document.getElementById("pin-sofa"),
+    table: document.getElementById("pin-table"),
+  };
+  const playBtn = document.getElementById("play");
+  const wipeBtn = document.getElementById("wipe");
+
+  let photo = null, anchors = null, phase = 0, t0 = 0, raf = 0;
+
+  // A built-in sample room so the demo works before you choose a photo.
+  function sampleRoom() {
+    const g = ctx.createLinearGradient(0, 0, 0, cv.height);
+    g.addColorStop(0, "#6d7f9c"); g.addColorStop(0.62, "#8d8a7a"); g.addColorStop(1, "#4a4038");
+    ctx.fillStyle = g; ctx.fillRect(0, 0, cv.width, cv.height);
+    // back wall + floor boards
+    ctx.fillStyle = "rgba(255,255,255,.05)"; ctx.fillRect(0, 0, cv.width, cv.height * 0.62);
+    ctx.strokeStyle = "rgba(0,0,0,.16)"; ctx.lineWidth = 2;
+    for (let i = 1; i < 9; i++) {
+      const y = cv.height * (0.62 + i * 0.042);
+      ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(cv.width, y); ctx.stroke();
+    }
+    // sofa (right), table (centre-left), door (left)
+    ctx.fillStyle = "#3f5a52";
+    ctx.fillRect(cv.width * 0.58, cv.height * 0.50, cv.width * 0.34, cv.height * 0.20);
+    ctx.fillStyle = "#4a6a60";
+    ctx.fillRect(cv.width * 0.60, cv.height * 0.44, cv.width * 0.30, cv.height * 0.09);
+    ctx.fillStyle = "#6b4a32";
+    ctx.beginPath(); ctx.ellipse(cv.width * 0.36, cv.height * 0.70, cv.width * 0.11, cv.height * 0.055, 0, 0, 7); ctx.fill();
+    ctx.fillStyle = "#3b2b1e";
+    ctx.fillRect(cv.width * 0.06, cv.height * 0.24, cv.width * 0.15, cv.height * 0.60);
+    ctx.fillStyle = "#6b4a32";
+    ctx.fillRect(cv.width * 0.075, cv.height * 0.28, cv.width * 0.12, cv.height * 0.52);
+    ctx.fillStyle = "#f5c451";
+    ctx.beginPath(); ctx.arc(cv.width * 0.185, cv.height * 0.54, 5, 0, 7); ctx.fill();
+    return "sample";
+  }
+
+  function setStep(n) {
+    document.querySelectorAll(".step").forEach(s => s.classList.toggle("on", +s.dataset.s === n));
+  }
+  function showPins(on) {
+    Object.values(pins).forEach(p => p.style.display = on ? "" : "none");
+  }
+  function placePins() {
+    if (!anchors) return;
+    for (const k in pins) {
+      pins[k].style.left = (anchors[k].x / cv.width * 100) + "%";
+      pins[k].style.top = (anchors[k].y / cv.height * 100) + "%";
+    }
+  }
+
+  // ---- drag the markers ----
+  let drag = null;
+  for (const key in pins) {
+    const el = pins[key];
+    el.addEventListener("pointerdown", e => {
+      e.preventDefault(); el.setPointerCapture(e.pointerId);
+      drag = key; el.classList.add("drag"); stopPlay();
+    });
+    el.addEventListener("pointermove", e => {
+      if (drag !== key || !anchors) return;
+      const r = stage.getBoundingClientRect();
+      anchors[key] = {
+        x: Math.max(0, Math.min(cv.width, (e.clientX - r.left) / r.width * cv.width)),
+        y: Math.max(0, Math.min(cv.height, (e.clientY - r.top) / r.height * cv.height)),
+      };
+      placePins(); draw(0);
+    });
+    const end = () => { if (drag === key) { drag = null; el.classList.remove("drag"); } };
+    el.addEventListener("pointerup", end);
+    el.addEventListener("pointercancel", end);
+  }
+
+  // ---- render ----
+  function draw(time) {
+    const scene = {
+      w: cv.width, h: cv.height, anchors, photo,
+      duration: 11, light: { x: -0.55, y: 0.35 },
+      tint: photo ? Scene.sampleRoomColour(ctx, cv.width, cv.height) : { r: 1, g: 1, b: 1 },
+    };
+    Scene.renderFrame(ctx, Santa, scene, time);
+  }
+
+  function loop(ts) {
+    if (!t0) t0 = ts;
+    const el = (ts - t0) / 1000;
+    draw(el % 11.6);
+    raf = requestAnimationFrame(loop);
+  }
+  function stopPlay() { cancelAnimationFrame(raf); raf = 0; t0 = 0; }
+
+  function play() {
+    if (!anchors) return;
+    setStep(2); showPins(false); playBtn.disabled = true;
+    stopPlay(); t0 = 0; raf = requestAnimationFrame(loop);
+    setTimeout(() => {           // loop once, then hand control back
+      showPins(true); playBtn.disabled = false; setStep(1); stopPlay(); draw(0);
+    }, 11600);
+  }
+
+  // ---- photo input: read locally, never uploaded ----
+  document.getElementById("choose").addEventListener("click", () => document.getElementById("file").click());
+  document.getElementById("file").addEventListener("change", e => {
+    const f = e.target.files && e.target.files[0];
+    if (!f) return;
+    const url = URL.createObjectURL(f);
+    const img = new Image();
+    img.onload = () => {
+      // Downscale large photos: a 108MP phone photo will not fit a canvas.
+      const MAXW = 1600;
+      const s = Math.min(1, MAXW / img.width);
+      cv.width = Math.round(img.width * s);
+      cv.height = Math.round(img.height * s);
+      photo = img; URL.revokeObjectURL(url);
+      reset(); setStep(1);
+    };
+    img.src = url;
+  });
+
+  document.getElementById("sample").addEventListener("click", () => {
+    photo = null;
+    cv.width = 900; cv.height = 560;
+    sampleRoom(); reset(); setStep(1);
+  });
+
+  function reset() {
+    anchors = {
+      door:  { x: cv.width * 0.14, y: cv.height * 0.86 },
+      sofa:  { x: cv.width * 0.72, y: cv.height * 0.72 },
+      table: { x: cv.width * 0.36, y: cv.height * 0.72 },
+    };
+    playBtn.disabled = false; wipeBtn.disabled = false;
+    showPins(true); placePins(); draw(0);
+  }
+
+  playBtn.addEventListener("click", play);
+  document.getElementById("light").addEventListener("change", () => draw(0));
+
+  // The privacy kill switch (FR-19): drop every trace of the photo.
+  wipeBtn.addEventListener("click", () => {
+    stopPlay();
+    if (photo) { photo.src && (photo.src = ""); photo = null; }
+    document.getElementById("file").value = "";
+    anchors = null; showPins(false);
+    ctx.clearRect(0, 0, cv.width, cv.height);
+    playBtn.disabled = true; wipeBtn.disabled = true; setStep(0);
+  });
+
+  // Start on the sample so the page is never empty.
+  cv.width = 900; cv.height = 560; sampleRoom(); showPins(false);
+})();
+</script>
+</body>
+</html>
