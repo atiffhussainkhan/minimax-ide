@@ -65,6 +65,8 @@
     <button class="ghost" id="sample">Use a sample room</button>
     <button id="play" disabled>▶ Play the visit</button>
     <button class="ghost" id="cards" disabled>📮 Postcards</button>
+    <button id="save" disabled>⬇️ Save the video</button>
+    <button class="ghost" id="caps" type="button">What can this device do?</button>
     <button class="ghost" id="forget" disabled>🧹 Forget my photo</button>
   </div>
 
@@ -87,6 +89,7 @@
 <script src="santa.js"></script>
 <script src="engine.js"></script>
 <script src="postcards.js"></script>
+<script src="export.js"></script>
 <script>
 (function () {
   const cv = document.getElementById("cv"), ctx = cv.getContext("2d");
@@ -98,6 +101,11 @@
   };
   const playBtn = document.getElementById("play");
   const wipeBtn = document.getElementById("forget");
+  // Hoisted with the other lookups: reset() references these, and keeping them
+  // below their first use would leave a temporal-dead-zone trap for whoever
+  // edits this next.
+  const saveBtn = document.getElementById("save");
+  const capsBtn = document.getElementById("caps");
 
   let photo = null, anchors = null, phase = 0, t0 = 0, raf = 0;
 
@@ -225,6 +233,7 @@
     };
     playBtn.disabled = false; wipeBtn.disabled = false;
     document.getElementById("cards").disabled = false;
+    saveBtn.disabled = false;
     showPins(true); placePins(); draw(0);
   }
 
@@ -261,6 +270,49 @@
   });
 
   playBtn.addEventListener("click", play);
+
+  // ---- save the video ----------------------------------------------------
+  // Frame-paced, not wall-clock paced, so the file cannot claim a duration it
+  // does not have. See export.js for why that matters.
+  function sceneRenderer() {
+    return (t) => Scene.renderFrame(ctx, Santa, {
+      w: cv.width, h: cv.height, anchors, photo, duration: 11,
+      light: { x: -0.55, y: 0.35 },
+      tint: photo ? Scene.sampleRoomColour(ctx, cv.width, cv.height)
+                  : { r: 1, g: 1, b: 1 },
+    }, t * 11);
+  }
+
+  capsBtn.addEventListener("click", () => {
+    const c = ExportVideo.capabilities();
+    note.textContent = c.mediaRecorder
+      ? "Recorder: " + c.mime + (c.sharesToWhatsApp ? " (WhatsApp-ready)" : " (not WhatsApp-ready)") +
+        " · frame-paced: " + (c.deterministic ? "yes" : "no, falls back to realtime") +
+        " · WebCodecs: " + (c.webCodecs ? "yes" : "no")
+      : "This browser cannot record video.";
+  });
+
+  saveBtn.addEventListener("click", async () => {
+    if (!anchors) return;
+    stopPlay(); showPins(false);
+    saveBtn.disabled = true;
+    const was = note.textContent;
+    try {
+      const res = await ExportVideo.exportVideo(cv, sceneRenderer(), {
+        duration: 11, fps: 30,
+        onProgress: (f) => { note.textContent = "Recording… " + Math.round(f * 100) + "%"; },
+      });
+      if (res.size < 10000) throw new Error("The recording came out empty.");
+      ExportVideo.download(res.blob, ExportVideo.suggestName(res.mime.indexOf("mp4") === 0 ? "mp4" : "webm"));
+      note.textContent = "Saved · " + (res.size / 1048576).toFixed(1) + " MB · " +
+        res.mime.split(";")[0] + (res.deterministic ? " · frame-accurate" : " · realtime");
+    } catch (e) {
+      note.textContent = "Could not save: " + e.message;
+    } finally {
+      saveBtn.disabled = false;
+      setTimeout(() => { if (note.textContent.indexOf("Saved") === 0) note.textContent = was; }, 4000);
+    }
+  });
   document.getElementById("light").addEventListener("change", () => draw(0));
 
   // The privacy kill switch (FR-19): drop every trace of the photo.
@@ -271,7 +323,8 @@
     anchors = null; showPins(false);
     ctx.clearRect(0, 0, cv.width, cv.height);
     playBtn.disabled = true; wipeBtn.disabled = true;
-    document.getElementById("cards").disabled = true; setStep(0);
+    document.getElementById("cards").disabled = true;
+    saveBtn.disabled = true; setStep(0);
   });
 
   // Start on the sample so the page is never empty.
