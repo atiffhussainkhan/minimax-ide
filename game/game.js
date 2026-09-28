@@ -2,27 +2,39 @@
 // All assets are 3D cartoon characters generated free via Pollinations.
 // No accounts, no OAuth, no payment.
 
-const BOARD_SIZE = 100;
 const ROWS = 10;
 const COLS = 10;
 
-// Classic snake & ladder mappings (start -> end)
+// Classic snake & ladder mappings (start -> end).
+//
+// THE CLEARANCE RULE: a ladder may never land on, or within ONE square of, a
+// snake's bite square — every |ladder landing - snake bite| must be >= 2.
+// The move logic resolves the ladder first and the snake second, so a landing
+// square near a snake either bites you on arrival (ladder 80 ending on 99 slid
+// the player 80 -> 54, a net LOSS of 26) or makes the ladder a trap. Two squares
+// of clearance means a player who climbs always gets to stand on solid ground.
+//
+// tools/check_board_map.py enforces this automatically — do not edit either map
+// without re-running it.
 const SNAKES = {
-  99: 54, 70: 55, 52: 42, 25: 2, 95: 72,
+  99: 54, 95: 72, 67: 55, 52: 42, 25: 2,
 };
 const LADDERS = {
-  6: 25, 11: 33, 20: 59, 27: 74, 36: 57,
-  51: 69, 63: 81, 71: 91, 80: 99,
+  6: 30, 11: 33, 20: 59, 27: 74, 36: 57,
+  51: 69, 63: 81, 71: 91, 80: 93,
 };
 
-// Each snake's tint family. Body / dark / light are used by the SVG-based
-// 3D cartoon snake renderer so the gradient shading reads as 3D.
+// Each snake's colours. The renderer is pure vector now, so these are used
+// directly as fills — no hue-rotate filter is needed and every snake gets its
+// exact intended colour instead of an approximation of it.
+//   body  = main colour, dark = outline/shadow, light = top-down sheen,
+//   tint  = the soft pool drawn under the head and inside the end ring.
 const SNAKE_PALETTE = [
-  { hue: "0deg",   body: "#4caf50", dark: "#1b5e20", light: "#a5d6a7", tint: "#4caf50" }, // emerald
-  { hue: "330deg", body: "#ffb74d", dark: "#bf6f1c", light: "#ffe082", tint: "#ffb74d" }, // gold-rose
-  { hue: "200deg", body: "#42a5f5", dark: "#0d47a1", light: "#90caf9", tint: "#42a5f5" }, // sky-blue
-  { hue: "270deg", body: "#ba68c8", dark: "#4a148c", light: "#d1b3f0", tint: "#ba68c8" }, // purple
-  { hue: "160deg", body: "#26a69a", dark: "#004d40", light: "#80cbc4", tint: "#26a69a" }, // teal
+  { body: "#4caf50", dark: "#1b5e20", light: "#a5d6a7", tint: "#4caf50" }, // emerald
+  { body: "#ffb74d", dark: "#bf6f1c", light: "#ffe082", tint: "#ffb74d" }, // amber
+  { body: "#42a5f5", dark: "#0d47a1", light: "#90caf9", tint: "#42a5f5" }, // sky-blue
+  { body: "#ba68c8", dark: "#4a148c", light: "#d1b3f0", tint: "#ba68c8" }, // purple
+  { body: "#26a69a", dark: "#004d40", light: "#80cbc4", tint: "#26a69a" }, // teal
 ];
 
 const ALL_PLAYERS = [
@@ -44,6 +56,15 @@ const PAWN_OFFSETS = [
   { dx:  0.0, dy: -2.0 },  // P3: top-center
 ];
 
+// Headless-test autoplay controller (only ever used by the ?fast=1 hook).
+// Kept deliberately tiny and cancellable so no timer chain outlives the test.
+const autoplay = { on: false, timer: null };
+function stopAutoplay() {
+  autoplay.on = false;
+  clearTimeout(autoplay.timer);
+  autoplay.timer = null;
+}
+
 const LADDER_SPRITE = "assets/ladder_transparent.png";
 
 const state = {
@@ -62,6 +83,14 @@ const state = {
   // True once the last game has been played — only then does the champion
   // modal appear and the setup screen come back.
   tournamentDone: false,
+  // Mirror of each player's square, kept in sync as the game runs. If PLAYERS
+  // ever needs rebuilding (stale cache / partial init) we restore the real
+  // positions from here instead of resetting everyone back to square 0.
+  positions: {},
+  // Handle for the pending "game finished" timer so it can be cancelled if the
+  // player resets mid-countdown — otherwise a stale modal would pop up later
+  // on top of the setup screen.
+  winTimer: null,
 };
 
 // Amazing per-game and champion messages — picked randomly so each win feels
@@ -172,12 +201,15 @@ function updateActivePlayer() {
     el.classList.toggle("active", p.id === state.turn && state.winner === null);
   });
   const status = document.getElementById("status");
-  if (state.winner !== null) {
-    const w = PLAYERS[state.winner];
-    status.innerHTML = `<strong style="color:${w.color}">${w.name}</strong> wins! 🏆`;
-  } else if (PLAYERS.length > 0) {
-    const p = PLAYERS[state.turn];
-    status.innerHTML = `It's <strong style="color:${p.color}">${p.name}</strong>'s turn.`;
+  // `turn` and `winner` are indexes into PLAYERS, so look the player up rather
+  // than trusting the index — a stale one must degrade to a plain message, not
+  // throw and freeze the board.
+  const winner = PLAYERS[state.winner];
+  const current = PLAYERS[state.turn];
+  if (state.winner !== null && winner) {
+    status.innerHTML = `<strong style="color:${winner.color}">${winner.name}</strong> wins! 🏆`;
+  } else if (current) {
+    status.innerHTML = `It's <strong style="color:${current.color}">${current.name}</strong>'s turn.`;
   } else {
     status.innerHTML = `Press <strong>Roll Dice</strong> to start.`;
   }
@@ -195,9 +227,9 @@ function buildBoard() {
   grid.className = "board-grid";
   for (let i = 1; i <= 100; i++) {
     const cell = document.createElement("div");
-    // Use positionForSquare() so cell layout matches the snake/ladder
-    // sprite positions. orientation is bottom-up: square 1 at bottom-left,
-    // square 100 at top-right.
+    // Use positionForSquare() so cell layout matches where the snakes and
+    // ladders are drawn. Zig-zag, bottom-up: square 1 at bottom-left,
+    // square 100 at top-left.
     const pos = positionForSquare(i);
     const checker = (pos.row + pos.col) % 2 === 0;
     cell.className = "cell " + (checker ? "light" : "dark");
@@ -278,13 +310,13 @@ function buildBoard() {
     }
   });
 
-  // 3D cartoon snake bodies — drawn as SVG groups with gradients +
-  // cartoon face at the head + tail curl at the end.
+  // 3D cartoon snakes — pure vector: a fat headed face at the start square,
+  // tapering to one thin tail on the end square, both ends explicitly marked.
   Object.entries(SNAKES).forEach(([from, to], idx) => {
     const palette = SNAKE_PALETTE[idx % SNAKE_PALETTE.length];
     const g = document.createElementNS(NS, "g");
     g.setAttribute("class", "snake-3d");
-    g.setAttribute("opacity", "0.92");
+    g.setAttribute("opacity", "1");
     draw3DSnake(g, Number(from), Number(to), palette, idx);
     overlay.appendChild(g);
   });
@@ -324,27 +356,57 @@ function buildBoard() {
 }
 
 // ---------------------------------------------------------------------------
-// 3D cartoon snake — a slim raster sprite (assets/snake_v8/snake3311.png)
-// generated free via Pollinations: one gentle bend, a clear cartoon head, and
-// a smoothly tapering tail. Deliberately NOT coiled — an earlier coiled sprite
-// was so looped and fat that players could not tell which square the snake
-// started on or which it slid down to, which is the one thing a snake must
-// communicate.
+// 3D cartoon snake — drawn as pure vector SVG.
 //
-// Head anchoring: this sprite's head is on the LEFT, centred near
-// (HEAD_X, HEAD_Y). We translate the image so that point lands exactly on the
-// START square, then rotate about the head so the body trails off toward the
-// END square. The head is therefore always fully visible on its own square and
-// never clipped by the board edge or hidden under the body.
+// This deliberately does NOT use a raster sprite any more. A single stretched
+// bitmap is tapered at BOTH ends by construction, so it always read as "two
+// tails" with no head, which is the one thing a snake must communicate. Drawing
+// the snake ourselves fixes that at the source:
+//
+//   • HEAD  — a fat rounded head with two eyes and a forked red tongue, sitting
+//             on the START square. Impossible to mistake for a tail.
+//   • BODY  — a gently curving chain that tapers smoothly from the head down to
+//             a single thin tail tip, drawn over a darker outline chain so it
+//             reads clearly against the busy 3D board.
+//   • START — a soft tinted pool under the head.
+//   • END   — a ring around the tail square.
+//
+// One head, one tail, both ends obvious. Pure vector also means no image to
+// download, no decode, and it stays crisp at any board size.
 // ---------------------------------------------------------------------------
-const SNAKE_SPRITE_HREF = "assets/snake_v8/snake3311.png";
-const SNAKE_SPRITE_W = 1280;  // raw sprite width (px)
-const SNAKE_SPRITE_H = 300;   // raw sprite height (px)
-// Head anchor inside the source sprite. Measured from the alpha channel: the
-// head is the thick blob on the left, spanning x≈170–560 and peaking around
-// x≈500, vertically centred near y≈115.
-const SNAKE_HEAD_X = 300;
-const SNAKE_HEAD_Y = 115;
+const SNAKE_CELL = 100;            // viewBox units per board square
+const SNAKE_NECK_R = 17;           // body radius just behind the head
+const SNAKE_HEAD_R = 26;           // head circle radius
+const SNAKE_OUTLINE = 5;           // outline thickness around the body
+const SNAKE_BOARD_MIN = 4;         // keep art this far inside the board edge
+const SNAKE_BOARD_MAX = COLS * SNAKE_CELL - SNAKE_BOARD_MIN;
+
+// Build a smooth tapered "ribbon" along a centreline: walk the points, offset
+// each one by its half-width along the local normal, then close the two edges
+// into one shape. A ribbon (rather than a chain of circles) is what stops the
+// body looking beaded/caterpillar-like, and it tapers to a clean point.
+function snakeRibbonPath(pts, grow, offsetFrac, widthFrac) {
+  const n = pts.length;
+  if (n < 2) return "";
+  const L = [], R = [];
+  for (let i = 0; i < n; i++) {
+    const p = pts[i];
+    const a = pts[Math.max(0, i - 1)];
+    const b = pts[Math.min(n - 1, i + 1)];
+    let tx = b.x - a.x, ty = b.y - a.y;
+    const tl = Math.hypot(tx, ty) || 1;
+    tx /= tl; ty /= tl;
+    const nx = -ty, ny = tx;                       // local normal
+    const r = (p.r + grow) * (widthFrac === undefined ? 1 : widthFrac);
+    const off = (p.r + grow) * (offsetFrac || 0);
+    L.push([p.x + nx * (off + r), p.y + ny * (off + r)]);
+    R.push([p.x + nx * (off - r), p.y + ny * (off - r)]);
+  }
+  let d = `M${L[0][0].toFixed(2)} ${L[0][1].toFixed(2)}`;
+  for (let i = 1; i < n; i++) d += `L${L[i][0].toFixed(2)} ${L[i][1].toFixed(2)}`;
+  for (let i = n - 1; i >= 0; i--) d += `L${R[i][0].toFixed(2)} ${R[i][1].toFixed(2)}`;
+  return d + "Z";
+}
 
 function draw3DSnake(svg, fromSquare, toSquare, palette, idx) {
   const a = squareSvg(fromSquare);   // head square (where a player lands)
@@ -352,98 +414,138 @@ function draw3DSnake(svg, fromSquare, toSquare, palette, idx) {
   if (!a || !b) return;
 
   const NS = "http://www.w3.org/2000/svg";
+  const add = (tag, attrs) => {
+    const el = document.createElementNS(NS, tag);
+    for (const k in attrs) el.setAttribute(k, attrs[k]);
+    svg.appendChild(el);
+    return el;
+  };
 
-  const dx = b.x - a.x;
-  const dy = b.y - a.y;
-  const chord = Math.sqrt(dx * dx + dy * dy) || 1;
+  const dx = b.x - a.x, dy = b.y - a.y;
+  const chord = Math.hypot(dx, dy) || 1;
+  const ux = dx / chord, uy = dy / chord;   // unit vector: head → tail
+  const px = -uy, py = ux;                  // perpendicular to the body
 
-  // The sprite body trails to the RIGHT of the head (head at x≈300, body runs
-  // out to x≈1150), so the sprite's local +x axis already points away from the
-  // head. Rotating by the plain A→B angle maps that trailing direction onto the
-  // A→B vector, so the body runs from the head square A toward the end square B.
-  let angle = Math.atan2(dy, dx) * 180 / Math.PI;
-  // A whisper of variation so the five snakes are not stamped identically.
-  const jitter = ((idx * 37) % 13) - 6;   // −6°..+6°, stable per snake
-  angle += jitter;
-
-  // Size: keep the snake slim. It should clearly bridge the two squares
-  // without blanketing them, and stay thin enough that the square numbers
-  // underneath remain readable. Deliberately under the full chord so the body
-  // never spills past the board edge, plus a floor so short snakes
-  // (e.g. 52→42) stay visible.
-  const targetW = chord * 0.68;
-  const scale = Math.min(Math.max(targetW / SNAKE_SPRITE_W, 0.20), 0.30);
-
-  // Per-snake hue-rotate filter so all 5 snakes get distinct colours from one
-  // source sprite, plus a saturation lift so they stay punchy on the board.
-  const gid = `snake-img-${idx}`;
-  const defs = document.createElementNS(NS, "defs");
-  svg.appendChild(defs);
-  const filter = document.createElementNS(NS, "filter");
-  filter.setAttribute("id", gid);
-  filter.setAttribute("color-interpolation-filters", "sRGB");
-  filter.innerHTML = `
-    <feColorMatrix type="hueRotate" values="${parseHue(palette.hue)}" result="h"/>
-    <feColorMatrix in="h" type="saturate" values="1.3"/>
-  `;
-  defs.appendChild(filter);
-
-  // Mark the START square so it is always obvious where the snake begins.
-  // Drawn under the body, it reads as a subtle tinted tile rather than a ring
-  // competing with the head art.
-  const startMark = document.createElementNS(NS, "circle");
-  startMark.setAttribute("cx", a.x);
-  startMark.setAttribute("cy", a.y);
-  startMark.setAttribute("r", 30);
-  startMark.setAttribute("fill", palette.tint || palette.body);
-  startMark.setAttribute("opacity", "0.22");
-  svg.appendChild(startMark);
-
-  const g = document.createElementNS(NS, "g");
-  g.setAttribute("class", "snake-3d");
-  // Nudge the head a little toward the board centre. Squares on the border
-  // (1, 10, 91, 100 …) would otherwise have the head art hanging over the edge
-  // and clipped, while the tail naturally points inward anyway.
-  const bx = COLS * 50, by = ROWS * 50;
+  // Pull the head slightly toward the board centre so it never hangs over the
+  // edge on a border square (1, 10, 91, 100 …) and never gets clipped.
+  const bx = COLS * SNAKE_CELL / 2, by = ROWS * SNAKE_CELL / 2;
   const hlen = Math.hypot(bx - a.x, by - a.y) || 1;
-  const INSET = 20;
+  const INSET = 26;
   const hx = a.x + ((bx - a.x) / hlen) * INSET;
   const hy = a.y + ((by - a.y) / hlen) * INSET;
 
-  // Build the transform: put the head on square A, then rotate about the head.
-  // Order: translate(head) → rotate(angle) → scale → translate(-HEAD)
-  g.setAttribute(
-    "transform",
-    `translate(${hx} ${hy}) rotate(${angle}) scale(${scale}) translate(${-SNAKE_HEAD_X} ${-SNAKE_HEAD_Y})`
-  );
-  g.setAttribute("filter", `url(#${gid})`);
+  // One gentle bend, stable per snake, so the five don't all look stamped from
+  // the same ruler. Capped by length so short snakes (52→42) stay nearly straight.
+  const bowSign = ((idx * 7) % 2) ? 1 : -1;
+  const bow = bowSign * Math.min(chord * 0.11, 45);
+  const cx = (hx + b.x) / 2 + px * bow;
+  const cy = (hy + b.y) / 2 + py * bow;
 
-  const img = document.createElementNS(NS, "image");
-  img.setAttribute("href", SNAKE_SPRITE_HREF);
-  img.setAttributeNS("http://www.w3.org/1999/xlink", "href", SNAKE_SPRITE_HREF);
-  img.setAttribute("width", SNAKE_SPRITE_W);
-  img.setAttribute("height", SNAKE_SPRITE_H);
-  img.setAttribute("preserveAspectRatio", "none");
-  g.appendChild(img);
-  svg.appendChild(g);
+  // Sample a quadratic Bézier along head → tail.
+  const steps = Math.max(Math.round(chord / 8), 28);
+  const body = [];
+  for (let i = 0; i <= steps; i++) {
+    const t = i / steps;
+    const mt = 1 - t;
+    let x = mt * mt * hx + 2 * mt * t * cx + t * t * b.x;
+    let y = mt * mt * hy + 2 * mt * t * cy + t * t * b.y;
+    // Never let the body spill past the board edge.
+    x = Math.min(Math.max(x, SNAKE_BOARD_MIN), SNAKE_BOARD_MAX);
+    y = Math.min(Math.max(y, SNAKE_BOARD_MIN), SNAKE_BOARD_MAX);
+    // Radius profile: thick at the neck, a smooth taper along the body, then a
+    // circular shoulder over the last 14% so the tail finishes in a rounded
+    // point instead of a flat, cut-off tube.
+    let r = SNAKE_NECK_R * Math.pow(1 - t, 1.7) + 2;
+    if (t > 0.86) {
+      const u = (t - 0.86) / 0.14;
+      r *= Math.sqrt(Math.max(0, 1 - u * u));
+    }
+    body.push({ x, y, r });
+  }
 
-  // Mark the END square too, so both ends of the snake are unambiguous.
-  const endMark = document.createElementNS(NS, "circle");
-  endMark.setAttribute("cx", b.x);
-  endMark.setAttribute("cy", b.y);
-  endMark.setAttribute("r", 26);
-  endMark.setAttribute("fill", "none");
-  endMark.setAttribute("stroke", palette.dark);
-  endMark.setAttribute("stroke-width", "4");
-  endMark.setAttribute("opacity", "0.5");
-  svg.appendChild(endMark);
+  // START square: a soft tinted pool under the head, so the head always sits on
+  // a visibly marked square.
+  add("circle", {
+    cx: hx.toFixed(2), cy: hy.toFixed(2), r: (SNAKE_HEAD_R + 12).toFixed(2),
+    fill: palette.tint || palette.body, opacity: "0.20",
+  });
+
+  // Body. The dark edge is a STROKE on the body outline rather than a second
+  // ribbon behind it: the stroke follows the exact silhouette and its round
+  // caps/joins finish the tail tip cleanly, which a stacked ribbon cannot do.
+  add("path", {
+    d: snakeRibbonPath(body, 0),
+    fill: palette.body, stroke: palette.dark,
+    "stroke-width": SNAKE_OUTLINE * 2, "stroke-linejoin": "round",
+    "stroke-linecap": "round",
+  });
+  // A slim light stripe along the back gives the body a rounded, 3D look.
+  add("path", {
+    d: snakeRibbonPath(body, 0, -0.30, 0.22),
+    fill: palette.light, stroke: "none", opacity: "0.5",
+  });
+
+  // ---- HEAD -------------------------------------------------------------
+  // Drawn last so nothing overlaps it. This is the whole point of the rewrite:
+  // a big round head with a face reads as a head at any size.
+  add("circle", {
+    cx: hx.toFixed(2), cy: hy.toFixed(2), r: SNAKE_HEAD_R.toFixed(2),
+    fill: palette.body, stroke: palette.dark,
+    "stroke-width": SNAKE_OUTLINE * 2,
+  });
+  // Highlight on the upper-left of the head, so it reads as a rounded snout
+  // rather than a flat disc. Small and offset — not a pale wash over the face.
+  add("circle", {
+    cx: (hx - px * SNAKE_HEAD_R * 0.34 - ux * SNAKE_HEAD_R * 0.20).toFixed(2),
+    cy: (hy - py * SNAKE_HEAD_R * 0.34 - uy * SNAKE_HEAD_R * 0.20).toFixed(2),
+    r: (SNAKE_HEAD_R * 0.40).toFixed(2),
+    fill: palette.light, opacity: "0.45",
+  });
+
+  // Eyes, set forward on the head (away from the neck) and spread across it.
+  const eFwd = SNAKE_HEAD_R * 0.30, eSide = SNAKE_HEAD_R * 0.42;
+  for (const s of [1, -1]) {
+    const ex = hx - ux * eFwd + px * eSide * s;
+    const ey = hy - uy * eFwd + py * eSide * s;
+    add("circle", { cx: ex.toFixed(2), cy: ey.toFixed(2), r: "9.5", fill: "#ffffff" });
+    add("circle", {
+      cx: (ex - ux * 1.6).toFixed(2), cy: (ey - uy * 1.6).toFixed(2),
+      r: "4.6", fill: "#1a1a1a",
+    });
+  }
+
+  // Forked tongue, pointing forward from the mouth — the clearest "this end is
+  // the head" signal there is.
+  const t0x = hx - ux * (SNAKE_HEAD_R - 4), t0y = hy - uy * (SNAKE_HEAD_R - 4);
+  const t1x = t0x - ux * 13 + px * 5, t1y = t0y - uy * 13 + py * 5;
+  const t2x = t0x - ux * 13 - px * 5, t2y = t0y - uy * 13 - py * 5;
+  const tipX = t0x - ux * 12, tipY = t0y - uy * 12;
+  add("path", {
+    d: `M${t0x.toFixed(2)} ${t0y.toFixed(2)}L${tipX.toFixed(2)} ${tipY.toFixed(2)}` +
+       `M${tipX.toFixed(2)} ${tipY.toFixed(2)}L${t1x.toFixed(2)} ${t1y.toFixed(2)}` +
+       `M${tipX.toFixed(2)} ${tipY.toFixed(2)}L${t2x.toFixed(2)} ${t2y.toFixed(2)}`,
+    stroke: "#e53935", "stroke-width": "4", fill: "none",
+    "stroke-linecap": "round", "stroke-linejoin": "round",
+  });
+
+  // ---- END square -------------------------------------------------------
+  // A ring, clearly different from the head, marks where the snake slides to.
+  add("circle", {
+    cx: b.x.toFixed(2), cy: b.y.toFixed(2), r: "24",
+    fill: "none", stroke: palette.dark, "stroke-width": "5", opacity: "0.65",
+  });
+  add("circle", {
+    cx: b.x.toFixed(2), cy: b.y.toFixed(2), r: "24",
+    fill: palette.tint || palette.body, opacity: "0.14",
+  });
 }
-// Helper — convert "330deg" → 330 (number). feColorMatrix hueRotate wants a
-// degree value as a number.
-function parseHue(h) {
-  if (typeof h === "number") return h;
-  return parseFloat(String(h).replace("deg", "")) || 0;
+// Move a pawn and keep state.positions in sync. Every position change goes
+// through here so the mirror used by the self-heal can never drift.
+function setPos(player, square) {
+  player.pos = square;
+  state.positions[player.id] = square;
 }
+
 // Pawn positioning — recentered, smaller offsets
 // ---------------------------------------------------------------------------
 function placePawn(player) {
@@ -496,11 +598,15 @@ function toast(message, ms = 1800) {
 // Game flow
 // ---------------------------------------------------------------------------
 async function rollAndMove() {
-  // Self-heal: if PLAYERS is empty (e.g., stale cache, partial init),
-  // try to populate it from ALL_PLAYERS using state.playerCount so the
-  // Roll Dice button still works after a refresh mid-game.
+  // Self-heal: if PLAYERS is empty (e.g., stale cache, partial init), rebuild
+  // it from ALL_PLAYERS. Crucially we restore each pawn's real square from
+  // state.positions — resetting everyone to 0 here would silently wipe a game
+  // that was already in progress.
   if (PLAYERS.length === 0 && state.playerCount > 0) {
-    PLAYERS = ALL_PLAYERS.slice(0, state.playerCount).map((p) => ({ ...p, pos: 0 }));
+    PLAYERS = ALL_PLAYERS.slice(0, state.playerCount).map((p) => ({
+      ...p,
+      pos: state.positions[p.id] || 0,
+    }));
     buildPlayerList();
     placeAllPawns();
   }
@@ -522,7 +628,7 @@ async function rollAndMove() {
   if (to > 100) {
     toast(`${player.name} rolled ${value} — bounce! Stay on ${from}`);
   } else {
-    player.pos = to;
+    setPos(player, to);
     placePawn(player);
     updateActivePlayer();
     toast(`${player.name} rolled ${value} → ${to}`);
@@ -533,14 +639,14 @@ async function rollAndMove() {
     const dest = LADDERS[player.pos];
     toast(`🪜 Ladder! ${player.name} climbs ${player.pos} → ${dest}`);
     await sleep(700);
-    player.pos = dest;
+    setPos(player, dest);
     placePawn(player);
     updateActivePlayer();
   } else if (SNAKES[player.pos]) {
     const dest = SNAKES[player.pos];
     toast(`🐍 Snake! ${player.name} slides ${player.pos} → ${dest}`);
     await sleep(700);
-    player.pos = dest;
+    setPos(player, dest);
     placePawn(player);
     updateActivePlayer();
   }
@@ -559,8 +665,11 @@ async function rollAndMove() {
     rollBtn.disabled = true;
     // Let the win toast be read, then move on. Finishing a single game never
     // ends the tournament — it only ends once the selected number of games has
-    // been played in total.
-    setTimeout(() => {
+    // been played in total. The timer is stored so a reset mid-countdown can
+    // cancel it and stop a stale modal appearing over the setup screen.
+    clearTimeout(state.winTimer);
+    state.winTimer = setTimeout(() => {
+      state.winTimer = null;
       if (state.currentGame < state.totalGames) {
         showGameOverModal(player, winLine);
       } else {
@@ -575,11 +684,6 @@ async function rollAndMove() {
   updateActivePlayer();
   state.moving = false;
   rollBtn.disabled = false;
-}
-
-function resetGame() {
-  // Re-show the player-count selector.
-  showPlayerModal();
 }
 
 function sleep(ms) {
@@ -618,10 +722,19 @@ function startTournament(n, totalGames) {
   state.wins = {};
   state.history = [];
   state.tournamentDone = false;
+  // A new tournament always starts from scratch. Without this, `turn` keeps
+  // whatever index the PREVIOUS tournament ended on: play 4 players, hit New
+  // Game, pick 1 player, and state.turn (say 3) indexes past the end of the new
+  // one-player PLAYERS array, which crashes the status line.
+  state.turn = 0;
+  state.rolled = null;
+  state.moving = false;
+  state.winner = null;
   hideGameOverModal();
   // Populate PLAYERS from the canonical ALL_PLAYERS list (slice to n).
   PLAYERS = ALL_PLAYERS.slice(0, n).map((p) => ({ ...p, pos: 0 }));
-  PLAYERS.forEach((p) => { state.wins[p.id] = 0; });
+  state.positions = {};
+  PLAYERS.forEach((p) => { state.wins[p.id] = 0; state.positions[p.id] = 0; });
   hidePlayerModal();
   hideChampionModal();
   buildBoard();
@@ -642,6 +755,8 @@ function startTournament(n, totalGames) {
 // called from the between-games interstitial, so the tournament stays alive.
 function startNextGame() {
   PLAYERS = PLAYERS.map((p) => ({ ...p, pos: 0 }));
+  state.positions = {};
+  PLAYERS.forEach((p) => { state.positions[p.id] = 0; });
   state.turn = 0;
   state.rolled = null;
   state.moving = false;
@@ -659,9 +774,24 @@ function startNextGame() {
   toast(`Game ${state.currentGame} of ${state.totalGames} — fresh board!`);
 }
 
+// Keep the rules-panel button honest about what it will do. During a
+// multi-game tournament it abandons the run and returns to the setup screen,
+// so it says so explicitly rather than reading like a harmless "New Game"
+// that could dump the player out mid-tournament by accident.
+function updateResetButton() {
+  const btn = document.getElementById("reset-btn");
+  if (!btn) return;
+  const inTournament = state.totalGames > 1 && !state.tournamentDone;
+  btn.textContent = inTournament ? "⏹ End Tournament" : "↺ New Game";
+  btn.title = inTournament
+    ? "Abandon this tournament and go back to player / game selection"
+    : "Start over";
+}
+
 // Render the tournament sidebar panel (wins so far).
 function updateTournamentPanel() {
   const panel = document.getElementById("tournament-panel");
+  updateResetButton();
   if (state.totalGames <= 1) {
     panel.hidden = true;
     return;
@@ -752,7 +882,7 @@ function showChampionModal() {
   let champWins = state.wins[champ.id] || 0;
   PLAYERS.forEach((p) => {
     const w = state.wins[p.id] || 0;
-    if (w > champWins) { champ = p;; champWins = w; }
+    if (w > champWins) { champ = p; champWins = w; }
   });
   const totalOther = state.totalGames - champWins;
   const pool = (totalOther === 0)
@@ -773,6 +903,8 @@ function showChampionModal() {
     `Final standings: ${stats}<br><span class="champion-games">` +
     `Tournament complete — all ${state.totalGames} game${state.totalGames === 1 ? "" : "s"} played. ` +
     `Start a new tournament to play again.</span>`;
+  // Past the tournament now, so the side button reverts to "New Game".
+  updateResetButton();
   // Spawn confetti
   spawnConfetti();
   document.getElementById("champion-modal").hidden = false;
@@ -807,8 +939,15 @@ function spawnConfetti() {
 function fullReset() {
   hideChampionModal();
   hideGameOverModal();
+  // Cancel any pending post-win timer so it cannot fire later and pop a stale
+  // modal on top of the setup screen.
+  clearTimeout(state.winTimer);
+  state.winTimer = null;
+  stopAutoplay();
   state.tournamentDone = false;
   state.history = [];
+  state.moving = false;
+  state.winner = null;
   // Clear all selections in the modal
   document.querySelectorAll(".count-btn.selected").forEach((b) => b.classList.remove("selected"));
   document.querySelectorAll(".games-btn.selected").forEach((b) => b.classList.remove("selected"));
@@ -867,9 +1006,11 @@ window.addEventListener("DOMContentLoaded", () => {
   });
   // Between-games interstitial: advance to the next game in the tournament.
   // The setup screen is deliberately NOT shown here — the tournament is still
-  // running, so we just rebuild the board and carry on.
+  // running, so we just rebuild the board and carry on. The interstitial is
+  // only ever shown when more games remain, so this always advances; there is
+  // deliberately no early-out here, because a guard that could block would
+  // strand the tournament and never deliver a final result.
   document.getElementById("next-game-btn").addEventListener("click", () => {
-    if (state.tournamentDone) return;
     hideGameOverModal();
     startNextGame();
   });
@@ -895,7 +1036,8 @@ window.addEventListener("DOMContentLoaded", () => {
     if (over && !over.hidden) {
       if (e.key === "Enter" || e.key === " ") {
         e.preventDefault();
-        if (!state.tournamentDone) { hideGameOverModal(); startNextGame(); }
+        hideGameOverModal();
+        startNextGame();
       }
       return;
     }
@@ -907,24 +1049,31 @@ window.addEventListener("DOMContentLoaded", () => {
 
   // Headless test hook: ?test=1&fast=1 auto-plays whole games so the
   // multi-game tournament flow can be verified without 100s of manual rolls.
-  // Only active when the explicit `test` param is present.
+  // Only active when the explicit `test` param is present. The loop keeps a
+  // single timer handle and a stop switch, so it is torn down the moment the
+  // tournament is reset or finishes instead of leaving a timer chain running
+  // (and the tab awake) for no reason.
   if (isTest && urlParams.get("fast") === "1") {
     const holdAtGameOver = urlParams.get("hold") === "1";
     const autoRoll = () => {
+      if (!autoplay.on) return;
+      autoplay.timer = setTimeout(autoRoll, 120);
       const over = document.getElementById("gameover-modal");
       if (over && !over.hidden) {
         // Tournament still running — take the interstitial's Next Game path.
         if (holdAtGameOver) return;  // leave it up so it can be screenshotted
         hideGameOverModal();
         startNextGame();
-        setTimeout(autoRoll, 120);
         return;
       }
-      if (!document.getElementById("champion-modal").hidden) return; // done
-      if (state.winner !== null || state.moving) { setTimeout(autoRoll, 80); return; }
+      if (!document.getElementById("champion-modal").hidden) {
+        stopAutoplay();               // tournament finished
+        return;
+      }
+      if (state.winner !== null || state.moving) return;
       rollAndMove();
-      setTimeout(autoRoll, 140);
     };
-    setTimeout(autoRoll, 400);
+    autoplay.on = true;
+    autoRoll();
   }
 });

@@ -1,0 +1,18 @@
+# Verification screenshots taken during development (game/v*.png, game/q_*.png …)
+# These are throwaway captures, not part of the game.
+v[0-9]*.png
+v*_*.png
+q_*.png
+now*.png
+sheet*.png
+*_s.png
+zoom.png
+
+# Unused sprite experiments from earlier iterations. The game only loads:
+#   assets/board.png, assets/dice.png, assets/ladder_transparent.png,
+#   assets/pawn_*_transparent.png, assets/snake_v8/snake3311.png
+assets/cute3d/
+assets/snake_real/
+assets/snake_real2/snake_[0-9]*.png
+assets/snake_v6/raw_*.png
+assets/snake_v8/raw_*.png

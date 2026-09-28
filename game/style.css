@@ -84,7 +84,7 @@ main {
        showing through the 5px gaps comes from the cells being transparent
        (so the image is visible everywhere) — but we use a darker gradient
        hint at the very edges to keep a frame feel. */
-    url('assets/board.png') center/cover no-repeat,
+    url('assets/board.jpg') center/cover no-repeat,
     radial-gradient(ellipse at center,
       rgba(74, 42, 20, 0) 60%,
       rgba(74, 42, 20, 0.45) 100%),
@@ -143,8 +143,8 @@ main {
   z-index: 1;
 }
 
-/* Decorative snake + ladder sprites positioned at the head of each */
-.decor-layer, .snake-layer {
+/* Ladder sprite sitting at the base of each ladder. */
+.decor-layer {
   position: absolute;
   inset: 0;
   pointer-events: none;
@@ -658,4 +658,85 @@ body.locked main { filter: blur(2px); pointer-events: none; }
   margin-top: 8px;
   font-size: 0.82rem;
   color: #9fb0d0;
+}
+
+/* ===========================================================================
+   Accessibility + platform preferences
+   Appended last so these overrides win over the component defaults above.
+   =========================================================================== */
+
+/* Visible keyboard focus. The whole game is playable from the keyboard (R /
+   Space roll, Enter advances the interstitial), so a keyboard player must
+   always be able to see where they are. */
+:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+/* Fallback for engines without :focus-visible. */
+button:focus,
+a:focus,
+[tabindex]:focus {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+}
+/* Only suppress the ring for pointer users who do not need it. */
+button:focus:not(:focus-visible),
+a:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* Respect the OS "reduce motion" setting. The board animates constantly —
+   bouncing active pawn, rolling dice, sliding snakes — which is exactly the
+   kind of movement that triggers vestibular discomfort. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+  /* Pawn travel is a left/top transition; keep it instant but still correct. */
+  .pawn {
+    transition: none !important;
+  }
+  /* Confetti is purely decorative — hide it rather than let it fly. */
+  .champion-confetti,
+  #champion-confetti {
+    display: none !important;
+  }
+  /* The dice shake communicates "rolling" — swap it for a static state. */
+  .dice-display.rolling {
+    animation: none !important;
+  }
+}
+
+/* Honour the OS colour scheme. The game is dark by design; in light mode we
+   lift the page chrome slightly rather than inverting the board art (which is
+   a painted 3D jungle scene and would look wrong inverted). */
+@media (prefers-color-scheme: light) {
+  :root {
+    --bg: #eef1f7;
+    --panel: #ffffff;
+    --panel-light: #f4f6fb;
+    --text: #1a2033;
+    --text-mute: #4a5570;
+  }
+  body {
+    background: var(--bg);
+    color: var(--text);
+  }
+  .board-section,
+  .panel {
+    box-shadow: 0 12px 40px rgba(20, 30, 60, 0.12);
+  }
+}
+
+/* Print: a clean board, no sidebar or modals. */
+@media print {
+  .sidebar, .modal-backdrop, .toast, .decor-layer { display: none !important; }
+  body { background: #fff; color: #000; }
+  .board-section { box-shadow: none; }
 }

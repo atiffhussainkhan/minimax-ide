@@ -1,0 +1,26 @@
+{
+  "name": "Snake & Ladder — 3D Cartoon Edition",
+  "short_name": "Snake & Ladder",
+  "description": "A free 3D cartoon Snake & Ladder board game. Play 1-4 players over 1, 3, 5, 7 or 9 games.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#12161f",
+  "theme_color": "#12161f",
+  "lang": "en",
+  "categories": ["games", "entertainment"],
+  "icons": [
+    {
+      "src": "assets/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "assets/apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png"
+    }
+  ]
+}

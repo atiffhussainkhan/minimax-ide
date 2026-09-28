@@ -1,7 +1,19 @@
-# Secrets — never commit
+# Secrets — never commit. This repository is PUBLIC, so anything here would be
+# world-readable. GitHub Actions secrets live in repo Settings, not in files.
 .env
+.env.*
 *.env
 **/.env
+**/.env.*
+*.pem
+*.key
+id_rsa
+id_ed25519
+credentials.json
+secrets.json
+.netrc
+.npmrc
+.pypirc
 vscode/continue-config.json
 vscode/cline-mcp.json
 
@@ -15,3 +27,7 @@ vscode/cline-mcp.json
 node_modules/
 dist/
 *.log
+
+# Leftover sprite experiments from earlier iterations (unused by the game)
+assets/snake_head_green.png
+assets/snake_head_red.png
