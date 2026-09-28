@@ -4,6 +4,8 @@
 **Status:** Requirements, pre-build
 **Author:** prepared for Atif Hussain
 **Date:** 2026-09-28
+**Version:** 2.0 — post-review (see `requirements-review.md` and
+`uk-law-privacy-review.md`)
 
 ---
 
@@ -37,13 +39,13 @@ without also copying the user's idea. These are the raw materials for §4.
 | # | Site | Unique feature worth taking |
 |---|---|---|
 | 1 | **Fotor** — *Photo to Santa* (fotor.com/features/convert-photo-to-santa-claus/) | Curated **preset prompt library** with one-click templates; pairs a still filter with a Veo 3.1 image-to-video mode. |
-| 2 | **Media.io** (media.io/christmas-templates-effects.html) | **"Sit on Santa's lap"** pose template. Explicitly states *"the AI handles all the editing automatically in your browser"* — closest anyone gets to local processing. Free daily credits. |
+| 2 | **Media.io** (media.io/christmas-templates-effects.html) | **"Sit on Santa's lap"** pose template. Advertises that *"the AI handles all the editing automatically in your browser"* — the closest anyone comes to local processing, though the claim is about the UI, not a verifiable no-upload guarantee. Also **free daily credits**, a metered model every serious player in this category uses. |
 | 3 | **Wondercraft** (wondercraft.ai/tools/free-ai-santa-generator) | **Three personalisation fields** — *name, gift wish, inside joke*. Three output formats: image, **audio voice message**, video. One-line privacy claim: *"all uploads are processed securely and automatically deleted."* |
 | 4 | **ElevenLabs** — *Santa AI Video with Voice* | **Lip-synced spoken greeting** — Santa actually says the user's message. |
 | 5 | **SantaStudio** (App Store) | **Personal Library** — every creation saved, browsable, re-downloadable, re-shareable. |
-| 6 | **Filmora / Wondershare** | Direct **export to TikTok, Instagram and YouTube Shorts**, plus a captioning pass for accessibility. |
+| 6 | **Filmora / Wondershare** | Direct **export to TikTok, Instagram and YouTube Shorts**, plus a **captioning pass** for accessibility. |
 | 7 | **InsMind** (insmind.com/video-effects/ai-santa-transformation) | Publishes **quality guidance in-product** ("use a clear, front-facing portrait; avoid sunglasses or blur") — reduces failed generations. |
-| 8 | **Flyne.ai** — Christmas Video Generator | **Theme grid** — Santa transformation, gift-giving, toasting, hugs, as separate one-tap scenes. |
+| 8 | **Flyne.ai** — Christmas Video Generator | **Theme grid** — Santa transformation, gift-giving, toasting, hugs, as separate one-tap scenes. Supports **multiple photos in one unified run**. |
 | 9 | **AI Christmas Photo-Video XMAS** (App Store) | Accepts **pets as subjects**, not just people. |
 | 10 | **"Meet Your AI Santa"** (Google Play) | **Multi-character scenes** — "pose with Santa *or join the elves*". |
 
@@ -59,13 +61,16 @@ without also copying the user's idea. These are the raw materials for §4.
 
 ### 2.3 What *nobody* does
 
+Two of these are **negative claims about a market** and should be read as "no
+competitor reviewed offers this", not as a proven absence.
+
 | Gap | Evidence |
 |---|---|
-| **Truly zero server contact** | Media.io says browser-based; Wondercraft says "securely processed then deleted". MyHeritage explicitly *stores uploads on your account*. All of them still involve a server. |
+| **Hard, provable zero server contact** | Media.io advertises in-browser editing; Wondercraft claims automatic deletion; MyHeritage explicitly *stores uploads on your account*. None offers a guarantee a technical user can verify in DevTools. |
 | **Furniture-anchored placement** | Every site above transforms *people*. None composes a character relative to the user's **own door, sofa and table**. |
-| **Placement preview before generating** | No site shows "here's where Santa will sit" before committing. |
+| **Placement preview before generating** | No site reviewed shows "here's where Santa will sit" before committing. |
 | **A shareable keepsake/gift framing** | Every site sells a filter. None offers *"this is a present for someone else"*. |
-| **A child-redeemable pass** | No site lets the recipient open the experience on their own device. |
+| **A child-redeemable pass** | No site reviewed lets the recipient open the experience on their own device. |
 
 ---
 
@@ -89,13 +94,23 @@ Verified against current ICO guidance:
 - **If no data reaches you, you are not a controller of it.** The strongest
   privacy position available is not "we delete it" — it is "we never had it".
   This project takes the second option.
-- **No DPIA required.** A DPIA is required where processing is likely to result
-  in high risk to people's rights. Because no personal data is transmitted
-  anywhere, the risk profile is materially reduced. (Re-evaluate if any
-  server-side processing is ever introduced — see §3.4.)
-- **ICO data protection fee.** If you are not a controller of user photos you
-  likely have no fee to pay. Confirm your own position; the fee for a small
-  organisation is £52/£78 per year if you are.
+- **No personal data is transmitted, so controllership largely does not arise.**
+  The strongest privacy position is not "we delete it" — it is "we never had
+  it". This project takes the second option.
+- **⚠️ A DPIA is nevertheless required.** A Christmas/Santa novelty service is
+  the clearest case of an online service *"likely to be accessed by children in
+  the UK"*. The ICO is explicit that the Children's code applies **even if the
+  service is not aimed at children**. Standard 2 of the code requires a DPIA.
+  The zero-processing architecture is what that DPIA will cite as its
+  mitigation — but the DPIA itself must be produced and retained.
+- **The Children's code (Age Appropriate Design Code)** sets 15 standards under
+  s.125 DPA 2018, and the ICO *must* take it into account when judging
+  compliance (s.127). Most standards are satisfied **vacuously** here because
+  no personal data is collected — but standards 3, 4, 13 and 15 still require
+  positive action. See §6.
+- **ICO data protection fee.** Likely not payable, because you are not a
+  controller of user photos. **Confirm this position** rather than assuming it;
+  the fee for a small organisation is £52/£78 per year if you are.
 
 ### 3.2 What still has to be done
 
@@ -118,14 +133,28 @@ therefore **special category data** under Art. 9 UK GDPR.
 Mitigation, applied together:
 
 1. **Detection runs on-device only.** The user is the one doing it, on their own
-   photo, for their own household use → household exemption applies.
+   photo, for their own household use → household exemption applies. The
+   Children's code is nonetheless engaged (see §3.1); the mitigating factor is
+   that no biometric template is ever derived, transmitted or stored.
 2. **Detection is opt-in and toggleable.** The user can place points manually
    with no detection at all.
 3. **No face image, template or embedding is ever derived, transmitted or
    stored.** Only bounding-box coordinates exist, in memory, for the life of the
    tab.
 4. If detection is ever moved to a server, this changes completely and needs
-   explicit consent plus a DPIA. **Out of scope — see §8.**
+   explicit consent plus a fresh DPIA. **Out of scope — see §8.**
+
+### 3.3a The Children's code — four standards needing positive action
+
+Standards 7–10 are satisfied vacuously because no data is collected. These are
+not, and each needs positive action:
+
+| Standard | Requirement |
+|---|---|
+| **3 — Age appropriate application** | Document a risk-based assessment of age suitability, and make the application accessible to the youngest users. |
+| **4 — Transparency** | Privacy information must be *"concise, prominent and in clear language suited to the age of the child"*. The adult wording in §6 is **not** sufficient — a simpler child-facing version is required. |
+| **13 — Nudge techniques** | Nothing may encourage a child to submit personal data. The personal fields in FR-09 must not be framed toward a child entering their own details. |
+| **15 — Online tools** | Provide prominent, accessible tools for a child to exercise data rights and report concerns, linked from the tool. |
 
 ### 3.4 Hard rules for future maintainers
 
@@ -135,6 +164,46 @@ Mitigation, applied together:
 - [ ] No third-party script tags on the tool page
 - [ ] `Cache-Control: no-store` on the tool page
 - [ ] Photo held in a JS variable, released on tab close or explicit reset
+
+---
+
+## 3.5 🔴 Licensing blocker — the free tier is non-commercial
+
+The plan was to generate the Santa assets with the free Pollinations tier.
+**Its published terms do not permit this:**
+
+- Community tools are **"non-commercial"**
+- Community features are **"intended for users 16+"** — and this product is
+  aimed at children
+- **"Each model has its own license. Some allow commercial use, some don't.
+  Always check the specific model's license before use"**
+- **"Paid services are governed by the Myceli.AI Terms"** — the free terms
+  explicitly do not cover commercial use
+
+The free tier is also offered **without uptime commitments**.
+
+| Option | Cost | Verdict |
+|---|---|---|
+| **Build the character in code (SVG/Canvas)** | **$0** | **Recommended.** Fully yours, tiny, scalable, no dependency, no licence question. This is the same call that solved the snake sprite problem. |
+| Commission original art | One-off | Cleanest if you want higher visual quality |
+| Subscribe to a commercial tier | Pay-as-you-go | Legitimate, but the model licence still must be checked per model |
+
+→ **New: REQ-LIC-01…03.** See `uk-law-privacy-review.md`.
+
+---
+
+## 3.6 🔴 The privacy promise needs three enforcement points
+
+U1 is the headline differentiator, and it is **entirely dependent on three
+things being actually done**, not merely written down:
+
+1. **No third-party script** on the tool page — enforced by a build check that
+   fails CI, not a code comment
+2. **No server** that receives the image
+3. **A plain statement** to users of what is and is not protected
+
+→ **New: PR-16, PR-17.** One stray analytics tag makes every public claim
+false.
 
 ---
 
@@ -238,6 +307,14 @@ Taking the best of the market, then adding what nobody has.
 | PR-09 | Photos containing identifiable people must be the user's own or one they have permission to use; the site states this plainly and accepts no liability for misuse | Art. 5(1)(d) integrity |
 | PR-10 | No facial-recognition identity matching, no celebrity/public-figure matching | Art. 9 |
 | PR-11 | `Cache-Control: no-store` on the tool page and any endpoint it uses | Art. 32 |
+| PR-13 | **A DPIA must be produced and retained.** Required by Children's code standard 2. The zero-transmission architecture is the mitigation it records | Must |
+| PR-14 | **Child-facing privacy wording**, simpler than the adult notice (Children's code standard 4) | Must |
+| PR-15 | **Age-appropriate application assessment** documented (standard 3), plus a rights/reporting surface for children (standard 15) | Must |
+| PR-16 | **Build check: fail CI if any external `<script src>` appears on the tool page.** This is what makes U1 a guarantee rather than a claim | Must |
+| PR-17 | Privacy notice states positively what is **and is not** protected — client-side does not mean immune from a compromised device | Must |
+| REQ-LIC-01 | No character asset may be produced with a **non-commercial** tier. Every asset must have a recorded commercial-use licence | Must |
+| REQ-LIC-02 | Every shipped asset needs documented provenance: author, licence, commercial-redistribution status, in `docs/asset-provenance.md` | Must |
+| REQ-LIC-03 | The **service itself** may not rely on a free tier whose terms are 16+ and non-commercial | Must |
 | PR-12 | A **verifiable claim page** — instructions showing how a technical visitor can confirm zero network requests in DevTools | Turns a claim into a proof |
 
 > **Not legal advice.** Confirm your position with the ICO or an adviser before
@@ -245,6 +322,40 @@ Taking the best of the market, then adding what nobody has.
 > into controllership.
 
 ---
+
+### 5.4 Input handling and recovery (added by review)
+
+| ID | Requirement | Priority |
+|---|---|---|
+| FR-35 | **Downscale oversized inputs.** Phone photos are routinely 3–8 MP; iOS Safari caps canvas area (~16.7 MP) and a 108 MP image will silently fail to draw. Any input is rescaled to a working ceiling before compositing | Must |
+| FR-36 | **Apply EXIF orientation.** Phone photos store rotation in EXIF, not pixels; drawn naively, portrait photos render sideways. Use `createImageBitmap(..., {imageOrientation: "from-image"})` | Must |
+| FR-37 | **Anchors are adjustable and undoable.** Drag-adjust after placement; undo/redo; "start over" must not discard the photo | Must |
+| FR-38 | **Pre-flight quality guidance** (adopted from InsMind) — check framing, whether a room is visible, and lighting *before* the user invests effort, with a plain fix-it message | Must |
+| FR-39 | Normalise colour space so wide-gamut (P3) photos do not render differently between browsers | Should |
+| FR-40 | Portrait and landscape inputs both supported; a room-only photo is a first-class case (FR-11) | Must |
+| FR-41 | Generation progress and an explicit "your video is ready" — a frozen spinner for 10 s is a churn point | Must |
+| FR-42 | **Captions / text alternative** on the exported video, and a screen-reader description of what happens in the scene | Should |
+
+### 5.5 Export and encoding (added by review — the highest technical risk)
+
+| ID | Requirement | Priority |
+|---|---|---|
+| FR-30 | **Feature-detect the output format at runtime** with `MediaRecorder.isTypeSupported()`. There is no single format that works everywhere — see the matrix in RISK-2 | Must |
+| FR-31 | Preferred order: MP4/H.264 where supported → WebM/VP9 → animated fallback | Must |
+| FR-32 | **Prefer deterministic frame-by-frame encoding via WebCodecs `VideoEncoder`** rather than realtime `MediaRecorder` capture, so U8 (identical output every run) is actually achieved. Fall back to `MediaRecorder` where WebCodecs is absent, and document that output is then not bit-identical | Must |
+| FR-33 | **No server-side and no `ffmpeg.wasm` transcode path** — it requires `SharedArrayBuffer`, which requires COOP/COEP headers that shared hosting cannot set. See RISK-2 | Must |
+| FR-34 | **Explicitly test the iOS keyframe bug** where `MediaRecorder` output plays ~0.1 s then freezes as a still. Verify on a real iPhone before release | Must |
+| FR-43 | **Share format must suit the target channel.** WhatsApp does not accept WebM. When only WebM is available, the share card is offered as a **still image**, not a video | Must |
+
+### 5.6 Product and commercial (added by review)
+
+| ID | Requirement | Priority |
+|---|---|---|
+| FR-44 | A **metered / free-daily-credits** model, as used by Media.io and the rest of the category. Zero marginal cost today, but a commercial plan is required for a client-facing product | Should |
+| FR-45 | Optional **watermark on free output**, removed on purchase | Should |
+| FR-46 | **Attribution on shared output** (subtle logo or caption) so the share loop can return traffic. Must be **opt-out** to protect the privacy stance | Should |
+| FR-47 | All seasonal copy externalised to a single content file, never hard-coded, so a year-round product is a content change not a rewrite | Must |
+| FR-48 | Batch generation from multiple photos into one output (Flyne.ai pattern) | Optional |
 
 ## 7. Optional / later
 
@@ -276,11 +387,16 @@ Taking the best of the market, then adding what nobody has.
 | NFR-02 | Scene renders at 30 fps on a 2019-class phone; degrade gracefully to 24 fps |
 | NFR-03 | Total download < 3 MB including Santa sprite set |
 | NFR-04 | Works offline once loaded (service worker) — a further privacy guarantee, since it proves no network dependency |
-| NFR-05 | WCAG 2.1 AA: keyboard operable, focus visible, screen-reader labelled, honours `prefers-reduced-motion` |
+| NFR-05 | WCAG 2.1 AA: keyboard operable, focus visible, screen-reader labelled, honours `prefers-reduced-motion`. **Continuous falling snow is disabled under `prefers-reduced-motion`** — this resolves a direct conflict with FR-13 |
 | NFR-06 | No console errors; no mixed content |
 | NFR-07 | Runs on Safari 15+, Chrome 110+, Firefox 110+, iOS Safari 15+ |
 | NFR-08 | Graceful message when `MediaRecorder`, `OffscreenCanvas` or WebCodecs are unavailable |
 | NFR-09 | Memory freed on reset; verified with no unbounded growth over 50 consecutive renders |
+| NFR-10 | Handles a 108 MP input without failure (downscale per FR-35) | Must |
+| NFR-11 | Compositing runs in a `Worker` with `OffscreenCanvas` so the main thread never blocks on decode | Must |
+| NFR-12 | Explicit memory budget with a graceful failure path when exceeded | Should |
+| NFR-13 | Verified on a real iPhone, specifically for the MediaRecorder keyframe failure (FR-34) | Must |
+| NFR-14 | Must not hold the screen awake or spin CPU while idle | Should |
 
 ---
 
@@ -395,6 +511,45 @@ The two columns nobody else can honestly tick are the ones the product leads on.
 
 ---
 
+## 14a. Risk register (added by review)
+
+| ID | Risk | Likelihood | Impact | Mitigation |
+|---|---|---|---|---|
+| **RISK-1** | **ICO enforcement** — a child-facing service with a DPIA requirement treated as non-compliant | Low | High | Complete the DPIA and the four positive Children's-code standards before launch (§3.3a). Get written ICO/adviser confirmation. |
+| **RISK-2** | **No transcoding on shared hosting** — `ffmpeg.wasm` needs `SharedArrayBuffer`, which needs COOP/COEP headers that shared hosting cannot set. Combined with a hostile codec matrix, the exported file may be WebM on Chrome/Firefox and MP4 on Safari | **High** | High | FR-30…FR-34. Test format availability at runtime. Offer a still share card when the target channel can't take the format (FR-43). **Consider a host that can set headers** — this is now a hosting selection criterion. |
+| **RISK-3** | **iOS recording produces a 0.1 s clip then freezes** | Medium | High | FR-34. Test on a physical iPhone pre-release. WebCodecs path (FR-32) avoids the realtime-capture path entirely. |
+| **RISK-4** | **Sprite generation inconsistent** — a regenerated Santa set looks different to users | Medium | Medium | Generate once, commit to the repo, never regenerate without a version bump. U8 depends on it. |
+| **RISK-5** | **Time-boxed product** — a Christmas-only tool has ~8 weeks of demand a year | **High** | High | C3. This is a business decision, not a technical one, and it must be made before Phase 2. |
+| **RISK-6** | **A 108 MP phone photo silently fails to draw** | Medium | Medium | FR-35 downscale before compositing. |
+| **RISK-7** | **Third-party script added later** — one analytics tag destroys the entire privacy claim | Medium | **Severe** | PR-02 as a build-time check, not a code comment. Add a CI test that fails if any external `<script src>` appears on the tool page. |
+
+## 14b. Glossary (added by review)
+
+| Term | Meaning |
+|---|---|
+| **2.5D** | Flat sprites composited over a still photo with a parallax shift. Fakes depth without 3D geometry. |
+| **COOP / COEP** | `Cross-Origin-Opener-Policy` / `Cross-Origin-Embedder-Policy`. Headers required for `SharedArrayBuffer`. Shared hosting usually cannot set them. |
+| **DPIA** | Data Protection Impact Assessment. Required here by Children's code standard 2. |
+| **EXIF** | Metadata stored with photos, including rotation and colour profile. |
+| **H.264 / AVC** | The video codec in MP4. Hardware-accelerated almost everywhere. |
+| **SharedArrayBuffer** | Shared memory between threads. Needs COOP/COEP. Required by `ffmpeg.wasm`. |
+| **WebCodecs** | Modern browser API for frame-accurate video/audio encoding. Chrome/Edge; Safari partial. |
+| **WebM** | Google's open video container (VP8/VP9). What Chrome and Firefox natively record. WhatsApp generally will not accept it. |
+| **vacuous compliance** | A standard that is met because the thing it governs never happens — e.g. "data minimisation" when no data is collected. |
+
+## 14c. Assumptions (added by review)
+
+Each is load-bearing. If any is wrong, work changes.
+
+| # | Assumption | If wrong |
+|---|---|---|
+| A1 | Modern evergreen browsers only (see NFR-07) | Adds a legacy fallback path |
+| A2 | English only | Localisation work throughout |
+| A3 | One photo per visit | Batch processing required (FR-48) |
+| A4 | Static hosting, no backend | The whole zero-upload guarantee holds; any backend reopens PRIV-01 |
+| A5 | Personalisation text is optional and never required | If required, Children's code standard 13 is engaged harder |
+| A6 | No accounts, ever | MyHeritage's sign-up wall is a competitor anti-feature we deliberately do not copy |
+
 ## 15. Sources
 
 Market analysis drawn from the sites listed in §2, reviewed September 2026.
@@ -403,6 +558,16 @@ particular *Data protection by design and default* (Art. 25) and the ICO's
 position that purely personal or household activity falls outside the UK GDPR's
 scope.
 
-**This document is a requirements specification and engineering analysis, not
+> ### ⚠️ Legal status of this document
+>
+> This is a **requirements specification and engineering compliance analysis,
+> not legal advice.** It records what published ICO guidance and the provider's
+> own published terms say, so that a qualified adviser or the ICO can confirm
+> or correct it. Where this document states a legal position, treat it as
+> *research to be verified*, not as a conclusion to rely on. This caveat applies
+> to every section of this document that mentions law, compliance, consent,
+> licensing or data protection.
+>
+> **This document is a requirements specification and engineering analysis, not
 legal advice.** Have the privacy position confirmed with the ICO or a qualified
 adviser before launch.
