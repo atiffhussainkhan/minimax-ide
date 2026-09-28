@@ -1,0 +1,168 @@
+/* Atif's Arcade — portal shell.
+   The games themselves are self-contained pages; this styles only the frame
+   around them. */
+
+:root {
+  --bg: #0f1424;
+  --panel: #1a2138;
+  --panel-light: #232c4a;
+  --text: #e8ecf7;
+  --text-mute: #9aa3c0;
+  --accent: #ffd24c;
+  --accent-2: #ff8b3d;
+  --line: rgba(255, 255, 255, 0.09);
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+.wrap { width: min(1100px, 100% - 40px); margin-inline: auto; }
+
+/* ------------------------------------------------------------------ header */
+.site-head {
+  border-bottom: 1px solid var(--line);
+  background: linear-gradient(180deg, #141a2e, var(--bg));
+  padding: 34px 0 30px;
+}
+.brand {
+  display: inline-flex; align-items: center; gap: 12px;
+  color: var(--text); text-decoration: none;
+}
+.brand-mark {
+  font-size: 2rem; line-height: 1;
+  width: 52px; height: 52px; display: grid; place-items: center;
+  background: var(--panel-light); border: 1px solid var(--line);
+  border-radius: 14px;
+}
+.brand-text { font-size: 1.7rem; font-weight: 700; letter-spacing: -0.02em; }
+.tagline { color: var(--text-mute); margin: 12px 0 0; max-width: 56ch; }
+
+/* ----------------------------------------------------------------- section */
+.section { padding: 40px 0; }
+.section-title { font-size: 1.3rem; margin: 0 0 4px; letter-spacing: -0.01em; }
+.section-sub { color: var(--text-mute); margin: 0 0 24px; }
+
+/* -------------------------------------------------------------- game cards */
+.game-grid {
+  list-style: none; margin: 0; padding: 0;
+  display: grid; gap: 20px;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+}
+.game-card {
+  display: flex; flex-direction: column;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  overflow: hidden;
+  transition: transform 0.18s ease, border-color 0.18s ease;
+}
+.game-card:hover { transform: translateY(-3px); border-color: rgba(255, 210, 76, 0.4); }
+.game-card.is-coming { opacity: 0.62; }
+
+.card-art {
+  height: 140px; display: grid; place-items: center;
+  font-size: 3.4rem;
+  background: radial-gradient(120% 120% at 30% 20%, #2b3a63, #16203c);
+  border-bottom: 1px solid var(--line);
+}
+.art-soon { filter: grayscale(0.75); }
+
+.card-body { padding: 18px 18px 12px; flex: 1; }
+.card-title { margin: 0 0 6px; font-size: 1.15rem; }
+.card-desc { margin: 0 0 10px; color: var(--text-mute); font-size: 0.94rem; }
+.card-meta { margin: 0; color: var(--text-mute); font-size: 0.8rem; letter-spacing: 0.02em; text-transform: uppercase; }
+
+.card-play {
+  margin: 0 18px 18px; padding: 12px 16px;
+  font: inherit; font-weight: 600; font-size: 0.98rem;
+  color: #1a1400; cursor: pointer;
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  border: 0; border-radius: 12px;
+}
+.card-play:hover { filter: brightness(1.07); }
+.card-play:disabled {
+  background: var(--panel-light); color: var(--text-mute);
+  cursor: not-allowed; filter: none;
+}
+.card-play:focus-visible, .player-close:focus-visible {
+  outline: 3px solid var(--accent); outline-offset: 2px;
+}
+
+/* ------------------------------------------------------------ embedded game */
+.player { border-top: 1px solid var(--line); }
+.player-head {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 16px; margin-bottom: 16px;
+}
+.player-close {
+  font: inherit; font-size: 0.9rem; cursor: pointer;
+  color: var(--text); background: var(--panel-light);
+  border: 1px solid var(--line); border-radius: 10px; padding: 8px 14px;
+}
+.player-frame {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  padding: 14px;
+  overflow: hidden;
+}
+.player-frame iframe {
+  display: block;
+  width: 100%;
+  /* Tall enough for board + sidebar without an inner scrollbar on desktop. */
+  height: 1080px;
+  border: 0;
+  border-radius: 12px;
+  background: #0b1020;
+}
+.player-hint { color: var(--text-mute); font-size: 0.86rem; margin: 14px 2px 0; }
+.player-hint kbd {
+  background: var(--panel-light); border: 1px solid var(--line);
+  border-radius: 6px; padding: 1px 6px; font-size: 0.85em;
+}
+
+/* ------------------------------------------------------------------ footer */
+.site-foot {
+  border-top: 1px solid var(--line);
+  margin-top: 20px; padding: 28px 0 40px;
+  color: var(--text-mute); font-size: 0.9rem;
+}
+.foot-meta { font-size: 0.82rem; opacity: 0.8; }
+
+/* ------------------------------------------------------------------ mobile */
+@media (max-width: 760px) {
+  .player-frame { padding: 8px; }
+  /* The game stacks its sidebar under the board on narrow screens, so the frame
+     needs to grow rather than trap the player in a short inner scroll area. */
+  .player-frame iframe { height: 1500px; }
+  .brand-text { font-size: 1.4rem; }
+  .card-art { height: 116px; font-size: 2.8rem; }
+}
+
+/* ------------------------------------------------------- a11y preferences */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
+  .game-card:hover { transform: none; }
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --bg: #eef1f7; --panel: #ffffff; --panel-light: #f4f6fb;
+    --text: #1a2033; --text-mute: #4a5570;
+    --line: rgba(20, 30, 60, 0.12);
+  }
+  .site-head { background: linear-gradient(180deg, #ffffff, #eef1f7); }
+  .card-art { background: radial-gradient(120% 120% at 30% 20%, #dfe6f5, #c9d4ea); }
+  .player-frame iframe { background: #ffffff; }
+}
