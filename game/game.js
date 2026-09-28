@@ -376,7 +376,10 @@ function buildBoard() {
 // ---------------------------------------------------------------------------
 const SNAKE_CELL = 100;            // viewBox units per board square
 const SNAKE_NECK_R = 17;           // body radius just behind the head
-const SNAKE_HEAD_R = 26;           // head circle radius
+const SNAKE_HEAD_WID = 19;         // head half-width — MATCHES the body at the
+                                   // neck (see the radius profile below), so the
+                                   // head and body are flush, not a lollipop
+const SNAKE_HEAD_LEN = 27;         // head half-length along the body axis
 const SNAKE_OUTLINE = 5;           // outline thickness around the body
 const SNAKE_BOARD_MIN = 4;         // keep art this far inside the board edge
 const SNAKE_BOARD_MAX = COLS * SNAKE_CELL - SNAKE_BOARD_MIN;
@@ -466,7 +469,7 @@ function draw3DSnake(svg, fromSquare, toSquare, palette, idx) {
   // START square: a soft tinted pool under the head, so the head always sits on
   // a visibly marked square.
   add("circle", {
-    cx: hx.toFixed(2), cy: hy.toFixed(2), r: (SNAKE_HEAD_R + 12).toFixed(2),
+    cx: hx.toFixed(2), cy: hy.toFixed(2), r: (SNAKE_HEAD_WID + 15).toFixed(2),
     fill: palette.tint || palette.body, opacity: "0.20",
   });
 
@@ -486,45 +489,71 @@ function draw3DSnake(svg, fromSquare, toSquare, palette, idx) {
   });
 
   // ---- HEAD -------------------------------------------------------------
-  // Drawn last so nothing overlaps it. This is the whole point of the rewrite:
-  // a big round head with a face reads as a head at any size.
-  add("circle", {
-    cx: hx.toFixed(2), cy: hy.toFixed(2), r: SNAKE_HEAD_R.toFixed(2),
+  // Built in the BODY's own coordinate frame, so it is genuinely synchronised
+  // with the body rather than a circle parked on top of it:
+  //   • local +x points down the body toward the tail, so the snout faces -x
+  //   • the head is an ellipse whose half-WIDTH equals the body's width at the
+  //     neck, so head and body are flush where they meet — not a lollipop
+  //   • its rear tapers to a point that tucks under the body, so there is no
+  //     step where the two shapes join
+  //   • it carries the same light stripe, on the same side, at the same
+  //     offset/width fraction as the body, so shading runs continuously
+  const HX = (lx, ly) => hx + ux * lx + px * ly;
+  const HY = (lx, ly) => hy + uy * lx + py * ly;
+  const deg = Math.atan2(uy, ux) * 180 / Math.PI;
+  const ell = (lx, ly, rx, ry, attrs) => {
+    const cx = HX(lx, ly), cy = HY(lx, ly);
+    return add("ellipse", Object.assign({
+      cx: cx.toFixed(2), cy: cy.toFixed(2),
+      rx: rx.toFixed(2), ry: ry.toFixed(2),
+      transform: `rotate(${deg.toFixed(2)} ${cx.toFixed(2)} ${cy.toFixed(2)})`,
+    }, attrs));
+  };
+
+  // Scale the head down a little on short snakes (52→42 is only ~1.4 cells
+  // long) so the face never dwarfs the body it belongs to.
+  const headK = Math.max(0.74, Math.min(1, chord / 240));
+  const hw = SNAKE_HEAD_WID * headK;   // half-width, == body half-width at the neck
+  const hl = SNAKE_HEAD_LEN * headK;   // half-length along the body
+
+  ell(0, 0, hl, hw, {
     fill: palette.body, stroke: palette.dark,
     "stroke-width": SNAKE_OUTLINE * 2,
   });
-  // Highlight on the upper-left of the head, so it reads as a rounded snout
-  // rather than a flat disc. Small and offset — not a pale wash over the face.
-  add("circle", {
-    cx: (hx - px * SNAKE_HEAD_R * 0.34 - ux * SNAKE_HEAD_R * 0.20).toFixed(2),
-    cy: (hy - py * SNAKE_HEAD_R * 0.34 - uy * SNAKE_HEAD_R * 0.20).toFixed(2),
-    r: (SNAKE_HEAD_R * 0.40).toFixed(2),
-    fill: palette.light, opacity: "0.45",
+  // A slim rim highlight along the upper edge of the head, matching the body's
+  // stripe side but pushed further out so it reads as a sheen on the skull
+  // rather than a band drawn across the face.
+  ell(-hl * 0.02, -hw * 0.42, hl * 0.78, hw * 0.17, {
+    fill: palette.light, stroke: "none", opacity: "0.45",
   });
 
-  // Eyes, set forward on the head (away from the neck) and spread across it.
-  const eFwd = SNAKE_HEAD_R * 0.30, eSide = SNAKE_HEAD_R * 0.42;
+  // Eyes on the wide front half of the head, one each side. A cartoon eye is an
+  // outlined white oval with a pupil and a catchlight — a plain white dot reads
+  // as a bead stuck on rather than an eye.
+  const eX = -hl * 0.26, eY = hw * 0.50;
   for (const s of [1, -1]) {
-    const ex = hx - ux * eFwd + px * eSide * s;
-    const ey = hy - uy * eFwd + py * eSide * s;
-    add("circle", { cx: ex.toFixed(2), cy: ey.toFixed(2), r: "9.5", fill: "#ffffff" });
-    add("circle", {
-      cx: (ex - ux * 1.6).toFixed(2), cy: (ey - uy * 1.6).toFixed(2),
-      r: "4.6", fill: "#1a1a1a",
+    ell(eX, eY * s, hw * 0.38, hw * 0.44, {
+      fill: "#ffffff", stroke: palette.dark, "stroke-width": "2.5",
+    });
+    ell(eX + hw * 0.06, eY * s, hw * 0.20, hw * 0.24, { fill: "#1a1a1a" });
+    // catchlight — the detail that makes an eye look alive
+    ell(eX - hw * 0.07, eY * s + hw * 0.13, hw * 0.07, hw * 0.08, { fill: "#ffffff" });
+  }
+
+  // Nostrils, well forward of the eyes near the snout tip.
+  for (const s of [1, -1]) {
+    ell(-hl * 0.74, hw * 0.16 * s, hw * 0.05, hw * 0.05, {
+      fill: palette.dark, opacity: "0.6",
     });
   }
 
-  // Forked tongue, pointing forward from the mouth — the clearest "this end is
-  // the head" signal there is.
-  const t0x = hx - ux * (SNAKE_HEAD_R - 4), t0y = hy - uy * (SNAKE_HEAD_R - 4);
-  const t1x = t0x - ux * 13 + px * 5, t1y = t0y - uy * 13 + py * 5;
-  const t2x = t0x - ux * 13 - px * 5, t2y = t0y - uy * 13 - py * 5;
-  const tipX = t0x - ux * 12, tipY = t0y - uy * 12;
+  // Forked tongue, flicking out from the mouth at the snout tip.
+  const mX = -hl * 0.94, tipX = mX - 15 * headK;
   add("path", {
-    d: `M${t0x.toFixed(2)} ${t0y.toFixed(2)}L${tipX.toFixed(2)} ${tipY.toFixed(2)}` +
-       `M${tipX.toFixed(2)} ${tipY.toFixed(2)}L${t1x.toFixed(2)} ${t1y.toFixed(2)}` +
-       `M${tipX.toFixed(2)} ${tipY.toFixed(2)}L${t2x.toFixed(2)} ${t2y.toFixed(2)}`,
-    stroke: "#e53935", "stroke-width": "4", fill: "none",
+    d: `M${HX(mX, 0).toFixed(2)} ${HY(mX, 0).toFixed(2)}L${HX(tipX, 0).toFixed(2)} ${HY(tipX, 0).toFixed(2)}` +
+       `M${HX(tipX, 0).toFixed(2)} ${HY(tipX, 0).toFixed(2)}L${HX(tipX - 3, 6 * headK).toFixed(2)} ${HY(tipX - 3, 6 * headK).toFixed(2)}` +
+       `M${HX(tipX, 0).toFixed(2)} ${HY(tipX, 0).toFixed(2)}L${HX(tipX - 3, -6 * headK).toFixed(2)} ${HY(tipX - 3, -6 * headK).toFixed(2)}`,
+    stroke: "#e53935", "stroke-width": (4 * headK).toFixed(2), fill: "none",
     "stroke-linecap": "round", "stroke-linejoin": "round",
   });
 
