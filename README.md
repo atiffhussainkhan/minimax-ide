@@ -1,11 +1,34 @@
 # MiniMax + VS Code + GitHub
 
-This folder wires MiniMax models into your VS Code editor and your GitHub workflow.
+This folder wires MiniMax models into your VS Code editor and your GitHub workflow. It also holds **Atif's Arcade** — a small website of free browser games.
+
+## Run the games locally
+
+```bash
+# from the repository root
+python3 -m http.server 8000
+```
+
+- **Portal (all games):** <http://localhost:8000/site/>
+- **Snake & Ladder direct:** <http://localhost:8000/game/>
+
+Both are plain static sites — no build step, no install, no dependencies.
+
+## Verify the games
+
+```bash
+cd game
+bash tools/run_all.sh          # 1000-tournament stress test + 4 more gates
+bash tools/run_all.sh 50       # quick pass
+```
 
 ## What's inside
 
 | Path | Purpose |
 |---|---|
+| `site/` | **Atif's Arcade** — the portal website. Games load inline in an iframe; no download, no account. See [`site/README.md`](site/README.md). |
+| `game/` | **Snake & Ladder — 3D Cartoon Edition.** A complete static game (1–4 players, competitions of 1/3/5/7/9 games). See [`game/README.md`](game/README.md). |
+| `game/tools/` | Headless QA suite — 1000-tournament stress test, end-user walkthrough, board-map invariants, dead-code audit, screen renderer. |
 | `vscode/settings.json` | Workspace VS Code settings (Cline, Continue). Uses `${env:MINIMAX_API_KEY}`. |
 | `vscode/continue-config.json` | Continue.dev model config. Copy to `~/.continue/config.json`. |
 | `vscode/cline-mcp.json` | Cline MCP server config for MiniMax. |
