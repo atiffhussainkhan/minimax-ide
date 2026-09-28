@@ -56,15 +56,23 @@
   /* The AI-disclosure mark. Not decoration: the Children's code standard on
    * transparency and MyHeritage's own practice both point the same way. Shown
    * on every export, small, once. */
+  const BADGE_TEXT = "✦ AI-generated — Santa is not real";
   function badge(ctx, x, y, s) {
     ctx.save();
     ctx.globalAlpha = 0.86;
-    roundRect(ctx, x, y, s * 7.2, s * 1.9, s * 0.95);
-    ctx.fillStyle = "rgba(18,20,28,0.72)"; ctx.fill();
-    ctx.fillStyle = "#fff"; ctx.textAlign = "left"; ctx.textBaseline = "middle";
     ctx.font = "600 " + (s * 1.05) + "px " + FONT;
-    ctx.fillText("✦ AI-generated — Santa is not real", x + s * 0.85, y + s * 0.98);
+    ctx.textAlign = "left"; ctx.textBaseline = "middle";
+    // Size the pill to the text. A fixed width looked right at one card size
+    // and silently clipped the disclosure on another — and a clipped
+    // disclosure is a compliance failure, not a cosmetic one.
+    const tw = ctx.measureText(BADGE_TEXT).width;
+    const padX = s * 0.85, pillW = tw + padX * 2, pillH = s * 1.9;
+    roundRect(ctx, x, y, pillW, pillH, pillH / 2);
+    ctx.fillStyle = "rgba(18,20,28,0.72)"; ctx.fill();
+    ctx.fillStyle = "#fff";
+    ctx.fillText(BADGE_TEXT, x + padX, y + pillH / 2);
     ctx.restore();
+    return pillW;
   }
 
   /* ---------------------------------------------------------------- 1. The
