@@ -31,3 +31,7 @@ dist/
 # Leftover sprite experiments from earlier iterations (unused by the game)
 assets/snake_head_green.png
 assets/snake_head_red.png
+# Santa's Visit is a SEPARATE repository (atiffhussainkhan/santas-visit).
+# It is cloned here as its own working copy. Never commit it into this
+# game repo, or the two projects start drifting apart again.
+santas-visit/
