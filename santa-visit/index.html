@@ -35,6 +35,18 @@
   .note { background:#1d2740; border:1px solid var(--line); border-left:3px solid var(--accent);
           border-radius:10px; padding:12px 14px; margin:16px 0; color:var(--mute); font-size:.88rem; }
   .note b { color:var(--text); }
+  .privacy-box { margin-top:34px; background:var(--panel); border:1px solid var(--line);
+                 border-radius:16px; padding:22px 24px; }
+  .privacy-box h2 { margin:0 0 12px; font-size:1.05rem; }
+  .privacy-box h3 { margin:22px 0 6px; font-size:.95rem; }
+  .privacy-box p, .privacy-box li { color:var(--mute); font-size:.9rem; }
+  .privacy-box strong { color:var(--text); }
+  .privacy-box a { color:var(--accent); }
+  /* The short version a child can actually read. */
+  .privacy-box .kid { background:#202a45; border-left:3px solid var(--good);
+                      border-radius:10px; padding:14px 16px; color:var(--text);
+                      font-size:1rem; line-height:1.6; }
+  .privacy-box .fine { font-size:.78rem; opacity:.85; }
   label.privacy { display:flex; gap:8px; align-items:flex-start; color:var(--mute);
                   font-size:.85rem; margin-top:14px; }
 </style>
@@ -66,6 +78,7 @@
     <button id="play" disabled>▶ Play the visit</button>
     <button class="ghost" id="cards" disabled>📮 Postcards</button>
     <button id="save" disabled>⬇️ Save the video</button>
+    <button class="ghost" id="vertical" disabled>📱 Save 9:16</button>
     <button class="ghost" id="caps" type="button">What can this device do?</button>
     <button class="ghost" id="forget" disabled>🧹 Forget my photo</button>
   </div>
@@ -78,6 +91,48 @@
   </div>
 
   <p id="note" style="color:#ffd24c;font-weight:600;margin:10px 0 0"></p>
+
+  <section class="privacy-box">
+    <h2>Your photo stays on your phone</h2>
+
+    <p class="kid">
+      <strong>If you are under 18, here's the short version:</strong>
+      your photo never leaves this device. It never gets sent anywhere.
+      We don't see it, we don't keep it, and when you close this tab it's gone.
+      Nothing here asks for your name, your address or anything about you.
+    </p>
+
+    <p>
+      <strong>For grown-ups.</strong> This tool runs entirely inside your browser.
+      Your photo is decoded into the page's memory, drawn on, and released when
+      you close the tab or press <em>Forget my photo</em>. It is never uploaded,
+      never stored on a server, and never seen by us or anyone else.
+    </p>
+
+    <ul>
+      <li>No account, no login, no email address</li>
+      <li>No cookies, no analytics, no advertising, no tracking</li>
+      <li>No third-party scripts on this page — enforced by a build check</li>
+      <li>Face detection is optional and runs on your device; no face data is
+          stored or sent anywhere</li>
+      <li>You are responsible for only using photos you have the right to use</li>
+    </ul>
+
+    <!-- Children's code standard 15: children must have a clear, reachable way to
+         report a concern or ask for something to be removed. -->
+    <h3>Questions, or something to report?</h3>
+    <p>
+      Write to <a href="mailto:atiff.khan@yahoo.com?subject=Santa%27s%20Visit%20%E2%80%94%20privacy">atiff.khan@yahoo.com</a>
+      with the subject "Privacy". We will answer within 5 working days.
+      You do not need to give us your name, and you can ask us to delete
+      anything you think we hold &mdash; the honest answer is usually that we
+      hold nothing, and we will tell you.
+    </p>
+    <p class="fine">
+      Full assessment: see <code>docs/dpia-santas-visit.md</code> in the
+      project. This is a free tool with no advertising and no data collection.
+    </p>
+  </section>
 
   <label class="privacy">
     <input type="checkbox" id="light" checked>
@@ -105,6 +160,7 @@
   // below their first use would leave a temporal-dead-zone trap for whoever
   // edits this next.
   const saveBtn = document.getElementById("save");
+  const vertBtn = document.getElementById("vertical");
   const capsBtn = document.getElementById("caps");
 
   let photo = null, anchors = null, phase = 0, t0 = 0, raf = 0;
@@ -233,7 +289,7 @@
     };
     playBtn.disabled = false; wipeBtn.disabled = false;
     document.getElementById("cards").disabled = false;
-    saveBtn.disabled = false;
+    saveBtn.disabled = false; vertBtn.disabled = false;
     showPins(true); placePins(); draw(0);
   }
 
@@ -267,6 +323,48 @@
     note.textContent = CARDS[cardIdx][1];
     cardIdx = (cardIdx + 1) % CARDS.length;
     document.getElementById("cards").textContent = "📮 Next: " + CARDS[cardIdx][1];
+  });
+
+  // Vertical 9:16 for Stories / Reels / TikTok / Shorts. Re-renders at each
+  // step and letterboxes, so the door and the sofa both survive the crop.
+  vertBtn.addEventListener("click", async () => {
+    if (!anchors) return;
+    stopPlay(); showPins(false);
+    vertBtn.disabled = true;
+    try {
+      const res = await ExportVideo.exportVideo(cv, sceneRenderer(), {
+        duration: 11, fps: 30,
+        onProgress: (f) => { note.textContent = "Making the vertical cut… " + Math.round(f * 100) + "%"; },
+      });
+      const v = ExportVideo.verticalCanvas(cv, { caption: "Santa came to our house 🎅" });
+      const vctx = v.getContext("2d");
+      const out = document.createElement("canvas");
+      out.width = v.width; out.height = v.height;
+      const octx = out.getContext("2d");
+      const track = v.captureStream(0);
+      const t2 = track.getVideoTracks()[0];
+      const chunks = [];
+      const mime = ExportVideo.capabilities().mime;
+      const rec = new MediaRecorder(track, { mimeType: mime, videoBitsPerSecond: 3_000_000 });
+      rec.ondataavailable = (e) => { if (e.data && e.data.size) chunks.push(e.data); };
+      const stopped = new Promise((r) => { rec.onstop = r; });
+      rec.start();
+      const total = res.frames;
+      for (let i = 0; i < total; i++) {
+        sceneRenderer()(i / (total - 1));
+        octx.drawImage(v, 0, 0);
+        if (t2.requestFrame) t2.requestFrame();
+        await new Promise((r) => requestAnimationFrame(r));
+      }
+      rec.stop(); await stopped; t2.stop();
+      const blob = new Blob(chunks, { type: mime });
+      ExportVideo.download(blob, ExportVideo.suggestName("vertical." + (mime.indexOf("mp4") === 0 ? "mp4" : "webm")));
+      note.textContent = "Vertical saved · " + v.width + "x" + v.height;
+    } catch (e) {
+      note.textContent = "Could not save the vertical cut: " + e.message;
+    } finally {
+      vertBtn.disabled = false;
+    }
   });
 
   playBtn.addEventListener("click", play);
@@ -324,7 +422,7 @@
     ctx.clearRect(0, 0, cv.width, cv.height);
     playBtn.disabled = true; wipeBtn.disabled = true;
     document.getElementById("cards").disabled = true;
-    saveBtn.disabled = true; setStep(0);
+    saveBtn.disabled = true; vertBtn.disabled = true; setStep(0);
   });
 
   // Start on the sample so the page is never empty.

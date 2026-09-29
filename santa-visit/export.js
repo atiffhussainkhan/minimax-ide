@@ -105,6 +105,40 @@
     return new Promise((r) => canvas.toBlob(r, "image/png"));
   }
 
+  /* 9:16 vertical, for Stories / Reels / TikTok / Shorts.
+   *
+   * A naive crop of the middle throws away the door or the sofa — the very two
+   * things the user placed. Instead: fit the whole frame inside the vertical
+   * canvas, letterboxed on a soft dark ground, so the composition survives even
+   * though the aspect ratio does not. The band above the frame carries the
+   * caption, because vertical space is the one thing a crop cannot buy back.
+   */
+  function verticalCanvas(source, opts) {
+    const o = Object.assign({ caption: "", ground: "#0d1120" }, opts || {});
+    const targetAR = 9 / 16;
+    const band = Math.round(source.height * 0.18);      // room for the caption
+    const areaH = source.height - band;
+    const w = Math.round(areaH * targetAR);
+    const h = areaH + band;
+    const c = document.createElement("canvas");
+    c.width = Math.max(w, Math.round(source.width * 0.5));
+    c.height = h;
+    const ctx = c.getContext("2d");
+    ctx.fillStyle = o.ground;
+    ctx.fillRect(0, 0, c.width, c.height);
+    // Letterbox the source, centred in the photo area.
+    const s = Math.min(c.width / source.width, areaH / source.height);
+    const dw = source.width * s, dh = source.height * s;
+    ctx.drawImage(source, (c.width - dw) / 2, (areaH - dh) / 2, dw, dh);
+    if (o.caption) {
+      ctx.fillStyle = "#ffffff";
+      ctx.font = "600 " + Math.round(c.width * 0.062) + "px -apple-system, Helvetica, Arial, sans-serif";
+      ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.fillText(o.caption, c.width / 2, areaH + band * 0.5, c.width * 0.92);
+    }
+    return c;
+  }
+
   function download(blob, filename) {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -120,6 +154,6 @@
   }
 
   global.ExportVideo = {
-    capabilities, exportVideo, exportStill, download, suggestName,
+    capabilities, exportVideo, exportStill, verticalCanvas, download, suggestName,
   };
 })(typeof window !== "undefined" ? window : globalThis);
