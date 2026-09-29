@@ -111,7 +111,7 @@
        Q 17 ${hipY - 10} 13 ${shoulderY + 2}
        Q 8 ${shoulderY - 4} 0 ${shoulderY - 4}
        Q -8 ${shoulderY - 4} -13 ${shoulderY + 2} Z`,
-      C.suit
+      C.suit, { grad: "suit" }
     );
     // Front highlight so the body has a rounded, 3D cartoon read.
     path(
@@ -130,8 +130,8 @@
     // ---- Head ------------------------------------------------------------
     // Slight forward tilt reads as cheerful rather than severe.
     const tilt = p.head;
-    circle(0, headY, 12, C.skin);
-    circle(-4, headY - 2, 12, C.skinShade, { opacity: "0.25" });
+    path(`M -12 ${headY} a 12 12 0 1 0 24 0 a 12 12 0 1 0 -24 0`, C.skin, { grad: "skin" });
+    circle(-4, headY - 2, 12, C.skinShade, { opacity: "0.18" });
     // Ears.
     circle(-12, headY + 1, 3, C.skin);
     circle(12, headY + 1, 3, C.skin);
@@ -155,7 +155,7 @@
        Q 13 ${headY + 9} 11 ${headY - 1}
        Q 6 ${headY + 2} 0 ${headY + 2}
        Q -6 ${headY + 2} -11 ${headY - 1} Z`,
-      C.beard
+      C.beard, { grad: "trim" }
     );
     // Moustache over the nose, drawn after the beard so it sits on top.
     path(
@@ -230,7 +230,14 @@
   }
 
   /* -------------------------------------------------------------- renderers */
-  function toSVG(shapes, { x = 0, y = 0, scale = 1, flip = false } = {}) {
+  let gidSeq = 0;
+  function toSVG(shapes, opts) {
+    // Gradient ids must be unique per call: two Santas on one card would
+    // otherwise share (and fight over) the same <linearGradient> id.
+    const o = opts || {};
+    const x = o.x || 0, y = o.y || 0, flip = !!o.flip;
+    const scale = o.scale === undefined ? 1 : o.scale;
+    const gid = o.gid || ("sg" + (gidSeq++));
     const body = shapes.map((s) => {
       if (s.t === "circle")
         return `<circle cx="${s.cx}" cy="${s.cy}" r="${s.r}" fill="${s.fill}"${s.opacity ? ` opacity="${s.opacity}"` : ""}/>`;
@@ -241,15 +248,32 @@
       if (s.t === "line")
         return `<line x1="${s.x1}" y1="${s.y1}" x2="${s.x2}" y2="${s.y2}" stroke="${s.stroke}" stroke-width="${s.sw}" stroke-linecap="${s.cap || "round"}"/>`;
       if (s.t === "path") {
-        const fill = s.fill && s.fill !== "none" ? s.fill : "none";
+        // Gradients override the flat fill; without one, fall back to the fill
+        // itself. Getting this wrong renders every non-gradient path black.
+        const flat = s.fill && s.fill !== "none" ? s.fill : "none";
+        const f = s.grad ? `url(#${gid}-${s.grad})` : flat;
         const stroke = s.stroke ? ` stroke="${s.stroke}" stroke-width="${s.sw || 1}" stroke-linecap="round"` : "";
-        return `<path d="${s.d}" fill="${fill}"${stroke}${s.opacity ? ` opacity="${s.opacity}"` : ""}/>`;
+        return `<path d="${s.d}" fill="${f}"${stroke}${s.opacity ? ` opacity="${s.opacity}"` : ""}/>`;
       }
       return "";
     }).join("");
+    // Soft directional shading. A flat fill on a photograph reads as a sticker;
+    // a gradient plus a rim light reads as a deliberate cartoon overlay, which
+    // is a well-established aesthetic and costs nothing.
+    const defs = `<defs>
+      <linearGradient id="${gid}-suit" x1="0.2" y1="0" x2="0.8" y2="1">
+        <stop offset="0" stop-color="#e8524f"/><stop offset="0.55" stop-color="#cf2f2f"/><stop offset="1" stop-color="#9d1d1f"/>
+      </linearGradient>
+      <linearGradient id="${gid}-skin" x1="0.3" y1="0" x2="0.8" y2="1">
+        <stop offset="0" stop-color="#f7d0ab"/><stop offset="1" stop-color="#d9a077"/>
+      </linearGradient>
+      <linearGradient id="${gid}-trim" x1="0.2" y1="0" x2="0.9" y2="1">
+        <stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#d9d3c6"/>
+      </linearGradient>
+    </defs>`;
     // Flipping is handled by the negative scale on the group transform, so no
     // per-shape transform is needed here.
-    return `<g transform="translate(${x} ${y}) scale(${flip ? -scale : scale} ${scale})">${body}</g>`;
+    return defs + `<g transform="translate(${x} ${y}) scale(${flip ? -scale : scale} ${scale})">${body}</g>`;
   }
 
   /* Draw straight to a canvas — used by the video export pipeline, where SVG
