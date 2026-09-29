@@ -39,7 +39,13 @@ PY
 
 echo
 echo "=============================================================="
-echo " 3  requirements coverage"
+echo " 3  art intake (photoreal Santa, if delivered)"
+echo "=============================================================="
+python3 tools/check_art.py || rc=1
+
+echo
+echo "=============================================================="
+echo " 4  requirements coverage"
 echo "=============================================================="
 python3 - <<'PY'
 import re, sys
