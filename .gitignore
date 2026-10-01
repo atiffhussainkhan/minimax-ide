@@ -40,3 +40,7 @@ hopper-game/
 # Local backup archives. These duplicate repositories that are already on
 # GitHub, so committing them would only create a second source of truth.
 backup/
+
+# Local machine setup bundle: sanitised settings, but it belongs to one
+# machine and must never be published to a public repository.
+machine-setup/

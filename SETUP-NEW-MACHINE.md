@@ -61,3 +61,31 @@ game and nothing in the gates depends on them.
   tracked. `bin/` and `obj/` are build output and are ignored.
 - `Snake-and-ladder` also has a `wip-stash-readme` branch holding a stash that
   was rescued before the old machine was retired. It is not merged into main.
+
+## Editor and agent settings (VS Code, MiniMax, Codex)
+
+A sanitised bundle sits in `machine-setup/` in this folder. It is **gitignored
+on purpose** — the repository is public, and even with secrets stripped a
+machine's settings do not belong in a public repo. Move it across however you
+prefer (AirDrop, USB, iCloud Drive, or a private repo of your own), then on the
+new machine:
+
+    ./machine-setup/restore-settings.sh --dry-run    # preview
+    ./machine-setup/restore-settings.sh              # apply
+
+It restores VS Code preferences, snippets and chat-model choices, plus the
+MiniMax and Codex configuration files. Anything already there is backed up as
+`*.machine-setup-backup` first.
+
+### Two things it cannot restore, by design
+
+**GitHub sign-in.** The credential was in the macOS keychain, which is bound to
+the machine. Clone anything over HTTPS and let git prompt you, or turn on
+VS Code's "Always use GitHub for all repositories".
+
+**The MiniMax API key.** It was stripped out of the bundle and has to be
+pasted back into `~/.minimax/config.yaml` under `apiKey`. It is a live secret
+and a bundle like this is exactly how credentials end up in a git history.
+
+Also install your VS Code extensions: the settings travel, the extensions are
+installed per machine.
