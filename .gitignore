@@ -35,3 +35,8 @@ assets/snake_head_red.png
 # It is cloned here as its own working copy. Never commit it into this
 # game repo, or the two projects start drifting apart again.
 santas-visit/
+hopper-game/
+
+# Local backup archives. These duplicate repositories that are already on
+# GitHub, so committing them would only create a second source of truth.
+backup/
